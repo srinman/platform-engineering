@@ -40,13 +40,39 @@ platform-engineering/
 
 ## What is Platform Engineering?
 
-Platform engineering focuses on building an internal developer platform (IDP) that abstracts infrastructure complexity, enables self-service, and accelerates application delivery. This repository demonstrates:
+Platform engineering focuses on building an internal developer platform (IDP) that abstracts infrastructure complexity, enables self-service, and accelerates application delivery. It emerged from the need to overcome the limitations of traditional "ticket ops" workflows and reduce developer cognitive load.
+
+### Problems This Platform Solves
+
+**Traditional "Ticket Ops" Challenges:**
+- Developers blocked waiting for infrastructure provisioning tickets
+- Manual processes creating bottlenecks (days/weeks to provision resources)
+- Fragmented knowledge and undocumented processes
+- High cognitive load from managing infrastructure complexity
+- Inconsistent configurations across teams and environments
+- Slow development cycles and delayed time-to-market
+- Security and compliance applied as afterthoughts
+
+**Platform Engineering Approach:**
+- **Self-Service**: Developers provision resources instantly using declarative DSLs
+- **Automation**: Infrastructure, deployment, and security policies applied automatically
+- **Standardization**: Golden paths ensure consistency and best practices
+- **Reduced Cognitive Load**: Developers focus on code, not Kubernetes/infrastructure details
+- **Faster Delivery**: Minutes instead of days/weeks for common tasks
+- **Built-in Security**: Compliance and security policies enforced at platform level
+- **Improved Developer Experience**: Modern, frictionless workflows increase productivity and satisfaction
+
+### Platform Capabilities
+
+This repository demonstrates a platform-as-a-product approach with:
 
 - **Self-Service Capabilities**: Developers declare what they need using simple DSLs
 - **Security & Governance**: Built-in compliance and security policies
 - **GitOps Principles**: Infrastructure and applications managed through Git
 - **Multi-Cluster Management**: Separation of concerns across environments
 - **Day 2 Operations**: Automated operations, monitoring, and lifecycle management
+- **Golden Paths**: Approved patterns for common use cases
+- **Internal Developer Portal Ready**: Designed for integration with Backstage or similar IDPs
 
 ## Scenarios
 
@@ -152,16 +178,37 @@ This repository follows the **GitOps Bridge Pattern** and implements:
 4. **Progressive Delivery**: Safe rollout strategies
 5. **Observability First**: Built-in monitoring and logging
 
+## Documentation
+
+### Core Concepts
+- **[Platform Architecture](./docs/PLATFORM-ARCHITECTURE.md)**: Complete architecture overview, orchestration, and control plane design
+- **[Golden Paths](./docs/GOLDEN-PATHS.md)**: Recommended patterns and best practices for common use cases
+- **[Developer Experience](./docs/DEVELOPER-EXPERIENCE.md)**: DORA metrics, DevEx measurements, and continuous improvement
+- **[Team Topologies](./docs/TEAM-TOPOLOGIES.md)**: Team structure, responsibilities, and collaboration patterns
+
+### Implementation Guides
+- **[Getting Started](./docs/GETTING-STARTED.md)**: Step-by-step onboarding guide
+- **[Internal Developer Portal](./docs/INTERNAL-DEVELOPER-PORTAL.md)**: Backstage integration for service discovery and self-service
+- **[Observability](./docs/OBSERVABILITY.md)**: Metrics, logging, tracing, and alerting implementation
+- **[Quick Reference](./docs/QUICK-REFERENCE.md)**: Common commands and troubleshooting
+
+### Additional Resources
+- **[Contributing](./docs/CONTRIBUTING.md)**: How to contribute to the platform
+- **[Repository Summary](./docs/REPOSITORY-SUMMARY.md)**: Overview of repository structure and contents
+
 ## Contributing
 
 Contributions are welcome! Please see [CONTRIBUTING.md](./docs/CONTRIBUTING.md) for details.
 
-## Resources
+## External Resources
 
+- [CNCF Platform Engineering](https://www.cncf.io/blog/2025/11/19/what-is-platform-engineering/)
 - [Microsoft Platform Engineering Guide](https://learn.microsoft.com/en-us/platform-engineering/)
 - [AKS Platform Engineering Sample](https://learn.microsoft.com/en-us/samples/azure-samples/aks-platform-engineering/aks-platform-engineering/)
 - [KRO Project](https://kro.run/)
 - [GitOps Bridge Pattern](https://github.com/gitops-bridge-dev/gitops-bridge)
+- [Team Topologies](https://teamtopologies.com/)
+- [Backstage](https://backstage.io/)
 
 ## License
 
