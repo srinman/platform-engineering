@@ -1,0 +1,303 @@
+apiVersion: kro.run/v1alpha1
+kind: ResourceGroup
+metadata:
+  name: application
+  namespace: kro-system
+spec:
+  # Schema defines the input API for application teams
+  schema:
+    apiVersion: platform.example.com/v1alpha1
+    kind: Application
+    spec:
+      # Required fields
+      image: string
+      port: integer
+      
+      # Optional fields with defaults
+      replicas: integer | default=3
+      serviceType: string | default="ClusterIP"
+      domain: string | default=""
+      
+      # Resources
+      resources:
+        cpu: string | default="500m"
+        memory: string | default="512Mi"
+      
+      # Auto-scaling configuration
+      autoscaling:
+        enabled: boolean | default=false
+        minReplicas: integer | default=2
+        maxReplicas: integer | default=10
+        targetCPU: integer | default=70
+        targetMemory: integer | default=80
+      
+      # Environment variables
+      env: array | default=[]
+      
+      # Secrets to mount
+      secrets: array | default=[]
+      
+      # Health check configuration
+      healthCheck:
+        livenessPath: string | default="/healthz"
+        readinessPath: string | default="/ready"
+        initialDelaySeconds: integer | default=30
+        periodSeconds: integer | default=10
+      
+      # Security settings
+      security:
+        runAsNonRoot: boolean | default=true
+        readOnlyRootFilesystem: boolean | default=true
+        allowPrivilegeEscalation: boolean | default=false
+      
+      # Ingress configuration
+      ingress:
+        enabled: boolean | default=false
+        tls: boolean | default=true
+        annotations: object | default={}
+
+  # Resources to create
+  resources:
+    # 1. Deployment
+    - id: deployment
+      template:
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: ${schema.metadata.name}
+          namespace: ${schema.metadata.namespace}
+          labels:
+            app.kubernetes.io/name: ${schema.metadata.name}
+            app.kubernetes.io/managed-by: kro
+            platform.example.com/application: "true"
+        spec:
+          replicas: ${schema.spec.replicas}
+          selector:
+            matchLabels:
+              app: ${schema.metadata.name}
+          template:
+            metadata:
+              labels:
+                app: ${schema.metadata.name}
+                app.kubernetes.io/name: ${schema.metadata.name}
+              annotations:
+                prometheus.io/scrape: "true"
+                prometheus.io/port: "${schema.spec.port}"
+                prometheus.io/path: "/metrics"
+            spec:
+              securityContext:
+                runAsNonRoot: ${schema.spec.security.runAsNonRoot}
+                seccompProfile:
+                  type: RuntimeDefault
+              containers:
+              - name: app
+                image: ${schema.spec.image}
+                ports:
+                - containerPort: ${schema.spec.port}
+                  name: http
+                  protocol: TCP
+                env: ${schema.spec.env}
+                resources:
+                  requests:
+                    cpu: ${schema.spec.resources.cpu}
+                    memory: ${schema.spec.resources.memory}
+                  limits:
+                    cpu: ${schema.spec.resources.cpu}
+                    memory: ${schema.spec.resources.memory}
+                livenessProbe:
+                  httpGet:
+                    path: ${schema.spec.healthCheck.livenessPath}
+                    port: http
+                  initialDelaySeconds: ${schema.spec.healthCheck.initialDelaySeconds}
+                  periodSeconds: ${schema.spec.healthCheck.periodSeconds}
+                readinessProbe:
+                  httpGet:
+                    path: ${schema.spec.healthCheck.readinessPath}
+                    port: http
+                  initialDelaySeconds: ${schema.spec.healthCheck.initialDelaySeconds}
+                  periodSeconds: ${schema.spec.healthCheck.periodSeconds}
+                securityContext:
+                  allowPrivilegeEscalation: ${schema.spec.security.allowPrivilegeEscalation}
+                  readOnlyRootFilesystem: ${schema.spec.security.readOnlyRootFilesystem}
+                  runAsNonRoot: ${schema.spec.security.runAsNonRoot}
+                  capabilities:
+                    drop:
+                    - ALL
+                volumeMounts: |
+                  ${schema.spec.secrets | map(secret => {
+                    "name": secret.name,
+                    "mountPath": secret.mountPath,
+                    "readOnly": true
+                  })}
+              volumes: |
+                ${schema.spec.secrets | map(secret => {
+                  "name": secret.name,
+                  "secret": {
+                    "secretName": secret.name
+                  }
+                })}
+
+    # 2. Service
+    - id: service
+      template:
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: ${schema.metadata.name}
+          namespace: ${schema.metadata.namespace}
+          labels:
+            app.kubernetes.io/name: ${schema.metadata.name}
+            app.kubernetes.io/managed-by: kro
+        spec:
+          type: ${schema.spec.serviceType}
+          selector:
+            app: ${schema.metadata.name}
+          ports:
+          - port: 80
+            targetPort: ${schema.spec.port}
+            protocol: TCP
+            name: http
+
+    # 3. Ingress (conditional)
+    - id: ingress
+      includeWhen:
+        - ${schema.spec.ingress.enabled}
+      template:
+        apiVersion: networking.k8s.io/v1
+        kind: Ingress
+        metadata:
+          name: ${schema.metadata.name}
+          namespace: ${schema.metadata.namespace}
+          labels:
+            app.kubernetes.io/name: ${schema.metadata.name}
+            app.kubernetes.io/managed-by: kro
+          annotations: |
+            ${merge({
+              "cert-manager.io/cluster-issuer": "letsencrypt-prod",
+              "nginx.ingress.kubernetes.io/ssl-redirect": "true"
+            }, schema.spec.ingress.annotations)}
+        spec:
+          ingressClassName: nginx
+          tls:
+          - hosts:
+            - ${schema.spec.domain}
+            secretName: ${schema.metadata.name}-tls
+          rules:
+          - host: ${schema.spec.domain}
+            http:
+              paths:
+              - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: ${schema.metadata.name}
+                    port:
+                      number: 80
+
+    # 4. HorizontalPodAutoscaler (conditional)
+    - id: hpa
+      includeWhen:
+        - ${schema.spec.autoscaling.enabled}
+      template:
+        apiVersion: autoscaling/v2
+        kind: HorizontalPodAutoscaler
+        metadata:
+          name: ${schema.metadata.name}
+          namespace: ${schema.metadata.namespace}
+          labels:
+            app.kubernetes.io/name: ${schema.metadata.name}
+            app.kubernetes.io/managed-by: kro
+        spec:
+          scaleTargetRef:
+            apiVersion: apps/v1
+            kind: Deployment
+            name: ${schema.metadata.name}
+          minReplicas: ${schema.spec.autoscaling.minReplicas}
+          maxReplicas: ${schema.spec.autoscaling.maxReplicas}
+          metrics:
+          - type: Resource
+            resource:
+              name: cpu
+              target:
+                type: Utilization
+                averageUtilization: ${schema.spec.autoscaling.targetCPU}
+          - type: Resource
+            resource:
+              name: memory
+              target:
+                type: Utilization
+                averageUtilization: ${schema.spec.autoscaling.targetMemory}
+
+    # 5. PodDisruptionBudget
+    - id: pdb
+      template:
+        apiVersion: policy/v1
+        kind: PodDisruptionBudget
+        metadata:
+          name: ${schema.metadata.name}
+          namespace: ${schema.metadata.namespace}
+          labels:
+            app.kubernetes.io/name: ${schema.metadata.name}
+            app.kubernetes.io/managed-by: kro
+        spec:
+          minAvailable: 1
+          selector:
+            matchLabels:
+              app: ${schema.metadata.name}
+
+    # 6. NetworkPolicy (default deny ingress except from ingress controller)
+    - id: networkpolicy
+      template:
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        metadata:
+          name: ${schema.metadata.name}
+          namespace: ${schema.metadata.namespace}
+          labels:
+            app.kubernetes.io/name: ${schema.metadata.name}
+            app.kubernetes.io/managed-by: kro
+        spec:
+          podSelector:
+            matchLabels:
+              app: ${schema.metadata.name}
+          policyTypes:
+          - Ingress
+          - Egress
+          ingress:
+          - from:
+            - namespaceSelector:
+                matchLabels:
+                  name: ingress-nginx
+            ports:
+            - protocol: TCP
+              port: ${schema.spec.port}
+          egress:
+          - to:
+            - namespaceSelector: {}
+            ports:
+            - protocol: TCP
+              port: 53
+            - protocol: UDP
+              port: 53
+          - to:
+            - namespaceSelector: {}
+
+    # 7. ServiceMonitor for Prometheus (if available)
+    - id: servicemonitor
+      template:
+        apiVersion: monitoring.coreos.com/v1
+        kind: ServiceMonitor
+        metadata:
+          name: ${schema.metadata.name}
+          namespace: ${schema.metadata.namespace}
+          labels:
+            app.kubernetes.io/name: ${schema.metadata.name}
+            app.kubernetes.io/managed-by: kro
+        spec:
+          selector:
+            matchLabels:
+              app.kubernetes.io/name: ${schema.metadata.name}
+          endpoints:
+          - port: http
+            path: /metrics
+            interval: 30s

@@ -1,0 +1,156 @@
+apiVersion: kro.run/v1alpha1
+kind: ResourceGroup
+metadata:
+  name: tenant
+  namespace: kro-system
+spec:
+  schema:
+    apiVersion: platform.example.com/v1alpha1
+    kind: Tenant
+    spec:
+      displayName: string
+      contactEmail: string
+      costCenter: string
+      
+      quota:
+        cpu: string | default="10"
+        memory: string | default="20Gi"
+        pods: string | default="50"
+        services: string | default="10"
+        persistentVolumeClaims: string | default="5"
+        storage: string | default="100Gi"
+      
+      members: array | default=[]
+      
+      networking:
+        allowedNamespaces: array | default=[]
+        egressRules: array | default=[]
+      
+      ingress:
+        enabled: boolean | default=true
+        baseDomain: string
+        tls: boolean | default=true
+      
+      monitoring:
+        enabled: boolean | default=true
+        alertEmail: string
+
+  resources:
+    # 1. Namespace
+    - id: namespace
+      template:
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: ${schema.metadata.name}
+          labels:
+            platform.example.com/tenant: ${schema.metadata.name}
+            platform.example.com/cost-center: ${schema.spec.costCenter}
+            platform.example.com/managed-by: kro
+
+    # 2. ResourceQuota
+    - id: resourcequota
+      template:
+        apiVersion: v1
+        kind: ResourceQuota
+        metadata:
+          name: ${schema.metadata.name}-quota
+          namespace: ${schema.metadata.name}
+        spec:
+          hard:
+            requests.cpu: ${schema.spec.quota.cpu}
+            requests.memory: ${schema.spec.quota.memory}
+            limits.cpu: ${schema.spec.quota.cpu}
+            limits.memory: ${schema.spec.quota.memory}
+            pods: ${schema.spec.quota.pods}
+            services: ${schema.spec.quota.services}
+            persistentvolumeclaims: ${schema.spec.quota.persistentVolumeClaims}
+            requests.storage: ${schema.spec.quota.storage}
+
+    # 3. LimitRange
+    - id: limitrange
+      template:
+        apiVersion: v1
+        kind: LimitRange
+        metadata:
+          name: ${schema.metadata.name}-limits
+          namespace: ${schema.metadata.name}
+        spec:
+          limits:
+          - max:
+              cpu: "4"
+              memory: "8Gi"
+            min:
+              cpu: "100m"
+              memory: "128Mi"
+            default:
+              cpu: "500m"
+              memory: "512Mi"
+            defaultRequest:
+              cpu: "200m"
+              memory: "256Mi"
+            type: Container
+
+    # 4. NetworkPolicy - Default Deny
+    - id: networkpolicy-deny
+      template:
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        metadata:
+          name: default-deny-all
+          namespace: ${schema.metadata.name}
+        spec:
+          podSelector: {}
+          policyTypes:
+          - Ingress
+          - Egress
+
+    # 5. NetworkPolicy - Allow DNS
+    - id: networkpolicy-dns
+      template:
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        metadata:
+          name: allow-dns
+          namespace: ${schema.metadata.name}
+        spec:
+          podSelector: {}
+          policyTypes:
+          - Egress
+          egress:
+          - to:
+            - namespaceSelector:
+                matchLabels:
+                  name: kube-system
+            ports:
+            - protocol: UDP
+              port: 53
+
+    # 6. RBAC - Admin Role
+    - id: role-admin
+      template:
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: Role
+        metadata:
+          name: tenant-admin
+          namespace: ${schema.metadata.name}
+        rules:
+        - apiGroups: ["*"]
+          resources: ["*"]
+          verbs: ["*"]
+
+    # 7. RBAC - Developer Role
+    - id: role-developer
+      template:
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: Role
+        metadata:
+          name: tenant-developer
+          namespace: ${schema.metadata.name}
+        rules:
+        - apiGroups: ["", "apps", "batch"]
+          resources: ["pods", "deployments", "services", "configmaps", "secrets", "jobs", "cronjobs"]
+          verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+        - apiGroups: [""]
+          resources: ["pods/log", "pods/exec"]
+          verbs: ["get", "list"]

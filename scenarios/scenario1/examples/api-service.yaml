@@ -1,0 +1,67 @@
+apiVersion: platform.example.com/v1alpha1
+kind: Application
+metadata:
+  name: api-service
+  namespace: dev-team-a
+spec:
+  # Container configuration
+  image: myregistry.azurecr.io/api-service:v2.1.0
+  replicas: 5
+  port: 8080
+  
+  # Resource requirements
+  resources:
+    cpu: 1000m
+    memory: 2Gi
+  
+  # Networking
+  domain: api.example.com
+  serviceType: ClusterIP
+  
+  # Auto-scaling
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPU: 70
+    targetMemory: 80
+  
+  # Environment variables
+  env:
+    - name: DATABASE_URL
+      value: "postgresql://db.example.com:5432/mydb"
+    - name: REDIS_URL
+      value: "redis://redis.example.com:6379"
+    - name: LOG_LEVEL
+      value: "info"
+    - name: ENVIRONMENT
+      value: "production"
+  
+  # Secrets (must exist in the namespace)
+  secrets:
+    - name: api-credentials
+      mountPath: /etc/secrets/api
+    - name: database-password
+      mountPath: /etc/secrets/db
+  
+  # Health checks
+  healthCheck:
+    livenessPath: /api/health/live
+    readinessPath: /api/health/ready
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  
+  # Security settings
+  security:
+    runAsNonRoot: true
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+  
+  # Ingress configuration
+  ingress:
+    enabled: true
+    tls: true
+    annotations:
+      nginx.ingress.kubernetes.io/rate-limit: "100"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/cors-allow-origin: "https://example.com"

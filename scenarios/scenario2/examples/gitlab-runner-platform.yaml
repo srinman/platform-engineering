@@ -1,0 +1,49 @@
+apiVersion: platform.example.com/v1alpha1
+kind: ToolPlatform
+metadata:
+  name: gitlab-runner
+  namespace: platform-tools
+spec:
+  # Tool configuration
+  tool: gitlab-runner
+  version: "16.5.0"
+  
+  # Cluster configuration
+  cluster:
+    size: medium
+    nodeCount: 3
+    nodeSize: Standard_D4s_v3
+    kubernetesVersion: "1.28.3"
+    enableAutoUpgrade: true
+    
+    network:
+      vnetAddressSpace: "10.2.0.0/16"
+      subnetAddressSpace: "10.2.1.0/24"
+      enablePrivateCluster: false
+  
+  # RBAC configuration - GitLab Runner needs to create pods
+  rbac:
+    - serviceAccount: gitlab-runner
+      role: gitlab-runner-manager
+      namespace: gitlab-runner
+  
+  # Storage for cache
+  storage:
+    - name: gitlab-runner-cache
+      size: 100Gi
+      storageClass: managed-premium
+  
+  # Ingress not needed for GitLab Runner
+  ingress:
+    enabled: false
+  
+  # GitLab Runner specific configuration
+  config:
+    gitlabUrl: https://gitlab.example.com
+    concurrent: 10
+    checkInterval: 3
+    runnerRegistrationToken: ""  # Set via secret
+    tags:
+      - kubernetes
+      - docker
+      - linux

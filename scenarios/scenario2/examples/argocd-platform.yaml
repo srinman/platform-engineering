@@ -1,0 +1,56 @@
+apiVersion: platform.example.com/v1alpha1
+kind: ToolPlatform
+metadata:
+  name: argocd
+  namespace: platform-tools
+spec:
+  # Tool configuration
+  tool: argocd
+  version: "2.9.0"
+  
+  # Cluster configuration
+  cluster:
+    size: medium
+    nodeCount: 3
+    nodeSize: Standard_D4s_v3
+    kubernetesVersion: "1.28.3"
+    enableAutoUpgrade: true
+    
+    network:
+      vnetAddressSpace: "10.3.0.0/16"
+      subnetAddressSpace: "10.3.1.0/24"
+      enablePrivateCluster: false
+  
+  # RBAC configuration - Argo CD needs cluster-admin for GitOps
+  rbac:
+    - serviceAccount: argocd-application-controller
+      clusterRole: cluster-admin
+    - serviceAccount: argocd-server
+      role: argocd-server
+      namespace: argocd
+  
+  # Storage for repository data
+  storage:
+    - name: argocd-repo-server
+      size: 50Gi
+      storageClass: managed-premium
+  
+  # Ingress for web UI
+  ingress:
+    enabled: true
+    domain: argocd.platform.example.com
+    tls: true
+    allowedIPs:
+      - "10.0.0.0/8"       # Internal network
+      - "203.0.113.0/24"   # Office IP range
+  
+  # Argo CD specific configuration
+  config:
+    repositories:
+      - url: https://github.com/myorg/gitops-repo
+        type: git
+      - url: https://github.com/myorg/helm-charts
+        type: helm
+    ssoEnabled: true
+    ssoProvider: azure-ad
+    rbacEnabled: true

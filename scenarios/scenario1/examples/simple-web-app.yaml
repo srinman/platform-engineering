@@ -1,0 +1,23 @@
+apiVersion: platform.example.com/v1alpha1
+kind: Application
+metadata:
+  name: simple-web-app
+  namespace: dev-team-a
+spec:
+  # Basic configuration
+  image: nginx:1.25-alpine
+  port: 80
+  replicas: 3
+  
+  # Resource requirements
+  resources:
+    cpu: 100m
+    memory: 128Mi
+  
+  # Expose via domain
+  domain: simple-app.example.com
+  
+  # Enable ingress
+  ingress:
+    enabled: true
+    tls: true

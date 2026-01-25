@@ -1,0 +1,30 @@
+# Example terraform.tfvars file
+# Copy this file to terraform.tfvars and customize
+
+# Cluster configuration
+cluster_name            = "baseline-cluster1"
+resource_group_name     = "rg-baseline-cluster1"
+location                = "eastus"
+kubernetes_version      = "1.28.3"
+
+# Node configuration
+node_count              = 3
+node_vm_size            = "Standard_D4s_v3"
+enable_auto_scaling     = true
+min_count               = 2
+max_count               = 10
+
+# Network configuration
+vnet_address_space         = "10.1.0.0/16"
+aks_subnet_address_prefix  = "10.1.0.0/22"
+
+# GitOps configuration
+gitops_repo_url         = "https://github.com/srinman/platform-engineering"
+gitops_repo_branch      = "main"
+gitops_repo_path        = "baseline-clusters/baseline-cluster1/gitops"
+
+# Infrastructure provider
+infrastructure_provider = "capz"  # or "crossplane"
+
+# Environment
+environment             = "production"

@@ -1,0 +1,289 @@
+apiVersion: kro.run/v1alpha1
+kind: ResourceGroup
+metadata:
+  name: toolplatform
+  namespace: kro-system
+spec:
+  # Schema defines the input API for platform teams
+  schema:
+    apiVersion: platform.example.com/v1alpha1
+    kind: ToolPlatform
+    spec:
+      # Tool information
+      tool: string
+      version: string
+      
+      # Cluster configuration
+      cluster:
+        size: string | default="small"
+        nodeCount: integer | default=2
+        nodeSize: string | default="Standard_D2s_v3"
+        kubernetesVersion: string | default="1.28.3"
+        enableAutoUpgrade: boolean | default=true
+        
+        network:
+          vnetAddressSpace: string | default="10.2.0.0/16"
+          subnetAddressSpace: string | default="10.2.0.0/24"
+          enablePrivateCluster: boolean | default=false
+      
+      # RBAC configuration
+      rbac: array | default=[]
+      
+      # Storage requirements
+      storage: array | default=[]
+      
+      # Ingress configuration
+      ingress:
+        enabled: boolean | default=false
+        domain: string | default=""
+        tls: boolean | default=true
+        allowedIPs: array | default=[]
+      
+      # Tool-specific configuration
+      config: object | default={}
+
+  # Resources to create
+  resources:
+    # 1. Resource Group for the cluster
+    - id: resourcegroup
+      template:
+        apiVersion: azure.microsoft.com/v1alpha2
+        kind: ResourceGroup
+        metadata:
+          name: ${schema.metadata.name}-rg
+          namespace: ${schema.metadata.namespace}
+        spec:
+          location: eastus
+
+    # 2. Virtual Network
+    - id: vnet
+      template:
+        apiVersion: azure.microsoft.com/v1alpha2
+        kind: VirtualNetwork
+        metadata:
+          name: ${schema.metadata.name}-vnet
+          namespace: ${schema.metadata.namespace}
+        spec:
+          resourceGroupRef:
+            name: ${schema.metadata.name}-rg
+          location: eastus
+          addressSpace:
+            addressPrefixes:
+              - ${schema.spec.cluster.network.vnetAddressSpace}
+
+    # 3. Subnet for AKS
+    - id: subnet
+      template:
+        apiVersion: azure.microsoft.com/v1alpha2
+        kind: Subnet
+        metadata:
+          name: ${schema.metadata.name}-subnet
+          namespace: ${schema.metadata.namespace}
+        spec:
+          resourceGroupRef:
+            name: ${schema.metadata.name}-rg
+          virtualNetworkRef:
+            name: ${schema.metadata.name}-vnet
+          addressPrefix: ${schema.spec.cluster.network.subnetAddressSpace}
+
+    # 4. AKS Cluster using CAPZ (Cluster API Provider Azure)
+    - id: akscluster
+      template:
+        apiVersion: cluster.x-k8s.io/v1beta1
+        kind: Cluster
+        metadata:
+          name: ${schema.metadata.name}
+          namespace: ${schema.metadata.namespace}
+          labels:
+            platform.example.com/tool: ${schema.spec.tool}
+            platform.example.com/managed-by: kro
+        spec:
+          clusterNetwork:
+            pods:
+              cidrBlocks:
+                - 192.168.0.0/16
+            services:
+              cidrBlocks:
+                - 10.96.0.0/12
+          controlPlaneRef:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: AzureManagedControlPlane
+            name: ${schema.metadata.name}-control-plane
+          infrastructureRef:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: AzureManagedCluster
+            name: ${schema.metadata.name}
+
+    # 5. AKS Control Plane
+    - id: controlplane
+      template:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: AzureManagedControlPlane
+        metadata:
+          name: ${schema.metadata.name}-control-plane
+          namespace: ${schema.metadata.namespace}
+        spec:
+          resourceGroupName: ${schema.metadata.name}-rg
+          location: eastus
+          version: ${schema.spec.cluster.kubernetesVersion}
+          networkPlugin: azure
+          networkPolicy: azure
+          enablePrivateCluster: ${schema.spec.cluster.network.enablePrivateCluster}
+          autoUpgradeProfile:
+            upgradeChannel: ${schema.spec.cluster.enableAutoUpgrade ? "stable" : "none"}
+          identity:
+            type: SystemAssigned
+          sku:
+            tier: Standard
+
+    # 6. AKS Machine Pool
+    - id: machinepool
+      template:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: AzureManagedMachinePool
+        metadata:
+          name: ${schema.metadata.name}-pool0
+          namespace: ${schema.metadata.namespace}
+        spec:
+          mode: System
+          sku: ${schema.spec.cluster.nodeSize}
+          replicas: ${schema.spec.cluster.nodeCount}
+          osDiskSizeGB: 128
+          enableNodePublicIP: false
+
+    # 7. Namespace for the tool
+    - id: namespace
+      template:
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: ${schema.spec.tool}
+          labels:
+            platform.example.com/tool: ${schema.spec.tool}
+            platform.example.com/managed-by: kro
+
+    # 8. Storage Classes and PVCs (if storage is specified)
+    - id: storage
+      includeWhen:
+        - ${length(schema.spec.storage) > 0}
+      template: |
+        ${schema.spec.storage | map(storage => {
+          "apiVersion": "v1",
+          "kind": "PersistentVolumeClaim",
+          "metadata": {
+            "name": storage.name,
+            "namespace": schema.spec.tool
+          },
+          "spec": {
+            "accessModes": ["ReadWriteOnce"],
+            "storageClassName": storage.storageClass,
+            "resources": {
+              "requests": {
+                "storage": storage.size
+              }
+            }
+          }
+        })}
+
+    # 9. RBAC - Service Accounts
+    - id: serviceaccounts
+      includeWhen:
+        - ${length(schema.spec.rbac) > 0}
+      template: |
+        ${schema.spec.rbac | map(rbac => {
+          "apiVersion": "v1",
+          "kind": "ServiceAccount",
+          "metadata": {
+            "name": rbac.serviceAccount,
+            "namespace": rbac.namespace || schema.spec.tool
+          }
+        })}
+
+    # 10. RBAC - Roles and RoleBindings
+    - id: rolebindings
+      includeWhen:
+        - ${length(schema.spec.rbac) > 0}
+      template: |
+        ${schema.spec.rbac | filter(rbac => rbac.role) | map(rbac => [{
+          "apiVersion": "rbac.authorization.k8s.io/v1",
+          "kind": "RoleBinding",
+          "metadata": {
+            "name": rbac.serviceAccount + "-binding",
+            "namespace": rbac.namespace || schema.spec.tool
+          },
+          "roleRef": {
+            "apiGroup": "rbac.authorization.k8s.io",
+            "kind": "Role",
+            "name": rbac.role
+          },
+          "subjects": [{
+            "kind": "ServiceAccount",
+            "name": rbac.serviceAccount,
+            "namespace": rbac.namespace || schema.spec.tool
+          }]
+        }])}
+
+    # 11. RBAC - ClusterRoles and ClusterRoleBindings
+    - id: clusterrolebindings
+      includeWhen:
+        - ${length(schema.spec.rbac) > 0}
+      template: |
+        ${schema.spec.rbac | filter(rbac => rbac.clusterRole) | map(rbac => [{
+          "apiVersion": "rbac.authorization.k8s.io/v1",
+          "kind": "ClusterRoleBinding",
+          "metadata": {
+            "name": schema.metadata.name + "-" + rbac.serviceAccount + "-binding"
+          },
+          "roleRef": {
+            "apiGroup": "rbac.authorization.k8s.io",
+            "kind": "ClusterRole",
+            "name": rbac.clusterRole
+          },
+          "subjects": [{
+            "kind": "ServiceAccount",
+            "name": rbac.serviceAccount,
+            "namespace": rbac.namespace || schema.spec.tool
+          }]
+        }])}
+
+    # 12. Ingress (if enabled)
+    - id: ingress
+      includeWhen:
+        - ${schema.spec.ingress.enabled}
+      template:
+        apiVersion: networking.k8s.io/v1
+        kind: Ingress
+        metadata:
+          name: ${schema.metadata.name}-ingress
+          namespace: ${schema.spec.tool}
+          annotations:
+            cert-manager.io/cluster-issuer: letsencrypt-prod
+            nginx.ingress.kubernetes.io/ssl-redirect: "true"
+            nginx.ingress.kubernetes.io/whitelist-source-range: |
+              ${schema.spec.ingress.allowedIPs | join(",")}
+        spec:
+          ingressClassName: nginx
+          tls:
+          - hosts:
+            - ${schema.spec.ingress.domain}
+            secretName: ${schema.metadata.name}-tls
+          rules:
+          - host: ${schema.spec.ingress.domain}
+            http:
+              paths:
+              - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: ${schema.spec.tool}
+                    port:
+                      number: 80
+
+  # Status fields to expose
+  status:
+    - name: clusterName
+      fieldRef: $.resources[?(@.id == 'akscluster')].metadata.name
+    - name: resourceGroup
+      fieldRef: $.resources[?(@.id == 'resourcegroup')].metadata.name
+    - name: ready
+      fieldRef: $.resources[?(@.id == 'akscluster')].status.ready

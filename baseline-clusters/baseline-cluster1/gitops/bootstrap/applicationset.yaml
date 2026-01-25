@@ -1,0 +1,39 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: cluster-addons
+  namespace: argocd
+spec:
+  generators:
+    - git:
+        repoURL: ${repo_url}
+        revision: ${repo_branch}
+        directories:
+          - path: ${repo_path}/addons/*
+  template:
+    metadata:
+      name: '{{path.basename}}'
+      labels:
+        app.kubernetes.io/managed-by: argocd
+        app.kubernetes.io/part-of: cluster-addons
+    spec:
+      project: default
+      source:
+        repoURL: ${repo_url}
+        targetRevision: ${repo_branch}
+        path: '{{path}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{path.basename}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m

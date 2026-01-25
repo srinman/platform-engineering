@@ -1,0 +1,40 @@
+# Terraform
+**/.terraform/
+**/.terraform.lock.hcl
+**/terraform.tfstate
+**/terraform.tfstate.backup
+**/terraform.tfvars
+**/.terraform.tfstate.lock.info
+**/kubeconfig
+**/private_ssh_deploy_key
+
+# Kubernetes
+**/kubeconfig.yaml
+**/*.kubeconfig
+
+# Secrets
+**/*.pem
+**/*.key
+**/*.crt
+**/secrets.yaml
+**/secrets/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
