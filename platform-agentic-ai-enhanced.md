@@ -72,6 +72,45 @@ flowchart LR
     style AGENT fill:#6B5B95,color:white
 ```
 
+---
+
+## Document Structure: Related Projects
+
+This document covers four complementary projects that enable AI-powered platform operations. Each builds on the conceptual model above:
+
+| Project | Description | Jump to Section |
+|---------|-------------|-----------------|
+| **Azure MCP** | Microsoft's official MCP server for 40+ Azure services. Local or remote deployment. | [Azure MCP](#azure-mcp) |
+| **AKS MCP** | MCP server specialized for AKS/Kubernetes operations with Inspektor Gadget and Fleet support. | [AKS MCP](#aks-mcp) |
+| **HolmesGPT** | CNCF Sandbox agentic AI framework for root cause analysis. Integrates with MCP servers. | [HolmesGPT](#holmesgpt) |
+| **Agent CLI for AKS** | Azure CLI extension (`az aks agent`) powered by HolmesGPT for natural language troubleshooting. | [Agent CLI for AKS](#agent-cli-for-aks) |
+
+**How They Relate:**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     AI-Powered Platforms                        │
+├─────────────────────────────────────────────────────────────────┤
+│  Azure MCP ──────► Azure Services (Storage, Cosmos, Monitor...) │
+│       │                                                         │
+│       └──────────► Can be used alongside AKS MCP                │
+│                                                                 │
+│  AKS MCP ────────► Kubernetes + Inspektor Gadget + Fleet        │
+│       │                                                         │
+│       └──────────► Consumed by HolmesGPT and Agent CLI          │
+│                                                                 │
+│  HolmesGPT ──────► Agentic RCA framework (uses MCP servers)     │
+│       │                                                         │
+│       └──────────► Powers Agent CLI for AKS                     │
+│                                                                 │
+│  Agent CLI ──────► Azure CLI wrapper for HolmesGPT              │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+> 💡 **Quick Start:** If you're new to these tools, start with [Azure MCP](#azure-mcp) for Azure resource management, then explore [AKS MCP](#aks-mcp) for Kubernetes operations. For troubleshooting, jump to [Agent CLI for AKS](#agent-cli-for-aks) or [HolmesGPT](#holmesgpt).
+
+---
+
 ## Azure 
 
 ### Azure MCP  
