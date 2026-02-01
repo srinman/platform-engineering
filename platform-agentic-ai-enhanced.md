@@ -89,6 +89,10 @@ Azure MCP Server is Microsoft's official Model Context Protocol implementation t
 | **Cursor IDE** | stdio | AI-assisted Azure development |
 | **Custom MCP Clients** | stdio / SSE | Automation, CI/CD pipelines |
 
+##### Local Azure MCP (Default)
+
+Runs as a local process on the developer's workstation.
+
 ```mermaid
 flowchart TB
     subgraph DESKTOP["💻 Developer Desktop / Laptop"]
@@ -135,6 +139,66 @@ flowchart TB
     style MCP fill:#0078D4,color:white
     style AUTH fill:#00A67E,color:white
 ```
+
+##### Remote Azure MCP (Preview)
+
+For use with **Microsoft Foundry** and **Microsoft Copilot Studio**, Azure MCP Server can be deployed as a remote endpoint on **Azure Container Apps**.
+
+📚 **Deployment Templates**: [azd templates](https://github.com/microsoft/mcp/tree/main/servers/Azure.Mcp.Server/azd-templates)
+
+```mermaid
+flowchart TB
+    subgraph CLIENTS["🌐 External Clients"]
+        FOUNDRY["🧮 Microsoft Foundry"]
+        COPILOT_STUDIO["🤖 Copilot Studio"]
+        CUSTOM_AGENTS["⚙️ Custom AI Agents"]
+    end
+    
+    subgraph ACA["☁️ Azure Container Apps"]
+        subgraph "Remote Azure MCP Server"
+            MCP_CONTAINER["📡 Azure MCP<br/>(Container)"]
+            TOOLS["🔧 Azure Tools<br/>(40+ services)"]
+        end
+        
+        subgraph "Authentication (In-Cloud)"
+            MI["🔐 Managed Identity"]
+            ENTRA["Microsoft Entra ID"]
+        end
+    end
+    
+    subgraph AZURE["☁️ Azure Services"]
+        ARM["Azure Resource Manager"]
+        STORAGE["Storage"]
+        COSMOS["Cosmos DB"]
+        AKS["AKS"]
+        KEYVAULT["Key Vault"]
+        MORE["... 40+ services"]
+    end
+    
+    FOUNDRY <-->|"SSE/HTTP"| MCP_CONTAINER
+    COPILOT_STUDIO <-->|"SSE/HTTP"| MCP_CONTAINER
+    CUSTOM_AGENTS <-->|"SSE/HTTP"| MCP_CONTAINER
+    MCP_CONTAINER --> TOOLS
+    TOOLS --> MI
+    MI --> ENTRA
+    ENTRA -->|"OAuth Token"| ARM
+    ARM --> STORAGE
+    ARM --> COSMOS
+    ARM --> AKS
+    ARM --> KEYVAULT
+    ARM --> MORE
+    
+    style CLIENTS fill:#f5f5f5,stroke:#333
+    style ACA fill:#326CE5,color:white
+    style AZURE fill:#e6f2ff,stroke:#0078D4
+    style MCP_CONTAINER fill:#0078D4,color:white
+    style MI fill:#00A67E,color:white
+```
+
+> **Key Differences:**
+> - **Authentication**: Uses Managed Identity instead of local Azure CLI
+> - **Network**: Accessible via HTTP/SSE endpoints (requires secure configuration)
+> - **Use Case**: Required for Microsoft Foundry and Copilot Studio integration
 
 #### Azure MCP Tools  
 
@@ -196,39 +260,32 @@ AKS MCP Server extends the Model Context Protocol specifically for Azure Kuberne
 | **Remote Agents** | SSE / HTTP | In-cluster | Production diagnostics, automation |
 | **HolmesGPT** | MCP Protocol | Local or Cluster | Root cause analysis |
 
+##### Local AKS-MCP
+
+Runs as a local binary on the developer's workstation, using existing Azure CLI and kubeconfig credentials.
+
 ```mermaid
 flowchart TB
     subgraph DESKTOP["💻 Developer Desktop / Laptop"]
         direction TB
-        subgraph "MCP Clients (Local)"
+        subgraph "MCP Clients"
             VSCODE["🖥️ VS Code<br/>+ GitHub Copilot"]
             CLAUDE["🤖 Claude Desktop"]
             CURSOR["📝 Cursor IDE"]
         end
         
-        subgraph "Local AKS-MCP"
-            LOCAL_MCP["📡 aks-mcp<br/>(Local Binary)"]
-            LOCAL_TOOLS["🔧 Tools<br/>• kubectl<br/>• az CLI"]
+        subgraph "AKS-MCP Server (Local Binary)"
+            LOCAL_MCP["📡 aks-mcp"]
+            LOCAL_TOOLS["🔧 Tools<br/>• kubectl<br/>• az CLI<br/>• Inspektor Gadget"]
         end
         
-        subgraph "Local Auth"
-            AZ_AUTH["🔐 Azure CLI"]
+        subgraph "Authentication (Local)"
+            AZ_AUTH["🔐 Azure CLI<br/>(az login)"]
             KUBECONFIG["📋 kubeconfig"]
         end
     end
     
-    subgraph REMOTE["🌐 Remote Clients"]
-        REMOTE_AGENT["🤖 Remote AI Agent"]
-        HOLMES["🔍 HolmesGPT"]
-        AUTOMATION["⚙️ CI/CD Pipelines"]
-    end
-    
     subgraph CLUSTER["⎈ AKS Cluster"]
-        subgraph "In-Cluster AKS-MCP"
-            REMOTE_MCP["📡 aks-mcp Pod"]
-            REMOTE_SVC["🌐 Service<br/>(LoadBalancer/Ingress)"]
-        end
-        
         K8S_API["Kubernetes API"]
         WORKLOADS["📦 Workloads"]
         GADGET["🔬 Inspektor Gadget<br/>(DaemonSet)"]
@@ -244,16 +301,8 @@ flowchart TB
     LOCAL_MCP --> LOCAL_TOOLS
     LOCAL_TOOLS --> AZ_AUTH
     LOCAL_TOOLS --> KUBECONFIG
-    AZ_AUTH -->|"HTTPS"| ARM
+    AZ_AUTH -->|"HTTPS/OAuth"| ARM
     KUBECONFIG -->|"HTTPS"| K8S_API
-    
-    REMOTE_AGENT <-->|"SSE/HTTP"| REMOTE_SVC
-    HOLMES <-->|"MCP"| REMOTE_SVC
-    AUTOMATION <-->|"HTTP"| REMOTE_SVC
-    REMOTE_SVC --> REMOTE_MCP
-    REMOTE_MCP -->|"In-Cluster"| K8S_API
-    REMOTE_MCP -->|"Workload Identity"| ARM
-    
     K8S_API --> WORKLOADS
     K8S_API --> GADGET
     
@@ -261,9 +310,71 @@ flowchart TB
     style CLUSTER fill:#326CE5,color:white
     style AZURE fill:#e6f2ff,stroke:#0078D4
     style LOCAL_MCP fill:#0078D4,color:white
-    style REMOTE_MCP fill:#0078D4,color:white
     style GADGET fill:#FF6B35,color:white
 ```
+
+> **Security**: Inherits user's Azure RBAC and Kubernetes RBAC  
+> **Network**: Outbound only (Azure APIs, Kubernetes API)
+
+##### Remote AKS-MCP (In-Cluster)
+
+Deployed in-cluster using [Helm chart](https://github.com/Azure/aks-mcp/tree/main/chart), enabling shared access and production diagnostics.
+
+```mermaid
+flowchart TB
+    subgraph CLIENTS["🌐 Remote Clients"]
+        REMOTE_AGENT["🤖 Remote AI Agent"]
+        HOLMES["🔍 HolmesGPT"]
+        AUTOMATION["⚙️ CI/CD Pipelines"]
+        FOUNDRY["🧮 Microsoft Foundry"]
+    end
+    
+    subgraph CLUSTER["⎈ AKS Cluster"]
+        subgraph "aks-mcp Namespace"
+            REMOTE_MCP["📡 aks-mcp Pod"]
+            REMOTE_SVC["🌐 Service<br/>(LoadBalancer/Ingress)"]
+            TOOLS["🔧 Tools<br/>• kubectl<br/>• Inspektor Gadget"]
+        end
+        
+        subgraph "Authentication (In-Cluster)"
+            WI["Workload Identity"]
+            SA["ServiceAccount"]
+        end
+        
+        K8S_API["Kubernetes API"]
+        WORKLOADS["📦 Workloads"]
+        GADGET["🔬 Inspektor Gadget<br/>(DaemonSet)"]
+    end
+    
+    subgraph AZURE["☁️ Azure Cloud"]
+        ARM["Azure APIs"]
+        AAD["Microsoft Entra ID"]
+    end
+    
+    REMOTE_AGENT <-->|"SSE/HTTP"| REMOTE_SVC
+    HOLMES <-->|"MCP"| REMOTE_SVC
+    AUTOMATION <-->|"HTTP"| REMOTE_SVC
+    FOUNDRY <-->|"SSE/HTTP"| REMOTE_SVC
+    REMOTE_SVC --> REMOTE_MCP
+    REMOTE_MCP --> TOOLS
+    REMOTE_MCP --> SA
+    SA --> WI
+    WI -->|"Federated Token"| AAD
+    AAD -->|"OAuth Token"| ARM
+    REMOTE_MCP -->|"In-Cluster"| K8S_API
+    K8S_API --> WORKLOADS
+    K8S_API --> GADGET
+    
+    style CLIENTS fill:#f5f5f5,stroke:#333
+    style CLUSTER fill:#326CE5,color:white
+    style AZURE fill:#e6f2ff,stroke:#0078D4
+    style REMOTE_MCP fill:#0078D4,color:white
+    style WI fill:#00A67E,color:white
+    style GADGET fill:#FF6B35,color:white
+```
+
+> **Security**: Uses Workload Identity / Managed Identity; ServiceAccount RBAC  
+> **Network**: Inbound from MCP clients; outbound to Azure APIs
 
 #### AKS MCP Tools  
 
