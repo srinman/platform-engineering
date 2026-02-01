@@ -1,6 +1,7 @@
-#  Platform Engineering - Troubleshooting Your Platform Agentic AI Way!  
+#  Platform Engineering 
+#  Troubleshooting Your Platform Agentic AI Way!  
 
-> **Distinguish between:**
+> **Two Complementary Perspectives:**
 
 ### 1. Platform for Building AI Apps
 Focuses on how to build AI-powered applications using Azure managed services
@@ -15,7 +16,7 @@ Explores how AI can assist in operating and managing Azure services
 
 ---
 
-Rest of the document focuses on an example of AI-Powered Platforms     
+> 📖 **Document Focus:** The remainder of this document explores **AI-Powered Platforms** through practical examples using Azure MCP, AKS MCP, HolmesGPT, and the Agent CLI.
 
 ## Agents, LLM and MCP (and its tools)   
 
@@ -90,23 +91,26 @@ Azure MCP Server is Microsoft's official Model Context Protocol implementation t
 
 ```mermaid
 flowchart TB
-    subgraph "MCP Clients"
-        VSCODE["🖥️ VS Code<br/>+ GitHub Copilot"]
-        CLAUDE["🤖 Claude Desktop"]
-        CURSOR["📝 Cursor IDE"]
-        CUSTOM["⚙️ Custom Clients"]
+    subgraph DESKTOP["💻 Developer Desktop / Laptop"]
+        direction TB
+        subgraph "MCP Clients"
+            VSCODE["🖥️ VS Code<br/>+ GitHub Copilot"]
+            CLAUDE["🤖 Claude Desktop"]
+            CURSOR["📝 Cursor IDE"]
+            CUSTOM["⚙️ Custom Clients"]
+        end
+        
+        subgraph "Azure MCP Server (Local Process)"
+            MCP["📡 Azure MCP"]
+            TOOLS["🔧 Azure Tools"]
+        end
+        
+        subgraph "Authentication (Local)"
+            AUTH["🔐 Azure CLI<br/>(az login)"]
+        end
     end
     
-    subgraph "Azure MCP Server"
-        MCP["📡 Azure MCP<br/>(Local Process)"]
-        TOOLS["🔧 Azure Tools<br/>• Storage operations<br/>• Resource queries<br/>• Cosmos DB<br/>• App Config<br/>• And more..."]
-    end
-    
-    subgraph "Authentication"
-        AUTH["🔐 Azure CLI<br/>(az login)"]
-    end
-    
-    subgraph "Azure Services"
+    subgraph CLOUD["☁️ Azure Cloud"]
         ARM["Azure Resource Manager"]
         STORAGE["Storage Accounts"]
         COSMOS["Cosmos DB"]
@@ -120,12 +124,14 @@ flowchart TB
     CUSTOM <-->|"stdio/SSE"| MCP
     MCP --> TOOLS
     TOOLS --> AUTH
-    AUTH -->|"OAuth"| ARM
+    AUTH -->|"HTTPS/OAuth"| ARM
     ARM --> STORAGE
     ARM --> COSMOS
     ARM --> APPCONFIG
     ARM --> MONITOR
     
+    style DESKTOP fill:#f5f5f5,stroke:#333
+    style CLOUD fill:#e6f2ff,stroke:#0078D4
     style MCP fill:#0078D4,color:white
     style AUTH fill:#00A67E,color:white
 ```
@@ -135,6 +141,38 @@ flowchart TB
 Azure MCP provides a comprehensive set of tools for interacting with Azure services. Each tool maps to specific Azure operations and follows the MCP protocol specification.
 
 📚 **Tools Reference**: [Azure MCP Server Tools](https://learn.microsoft.com/en-us/azure/developer/azure-mcp-server/tools/)
+
+```mermaid
+flowchart LR
+    subgraph "Azure MCP Tool Categories"
+        direction TB
+        subgraph "Storage Tools"
+            BLOB["📦 Blob Operations<br/>upload, download, list"]
+            CONTAINER["📂 Container Mgmt<br/>create, delete, list"]
+        end
+        
+        subgraph "Database Tools"
+            COSMOS_T["🌐 Cosmos DB<br/>query, CRUD, containers"]
+            APPCONF["⚙️ App Configuration<br/>key-value operations"]
+        end
+        
+        subgraph "Resource Tools"
+            ARG["🔍 Resource Graph<br/>query resources"]
+            SUB["📋 Subscriptions<br/>list, select"]
+            RG["📁 Resource Groups<br/>list, manage"]
+        end
+        
+        subgraph "Monitoring Tools"
+            METRICS["📊 Metrics<br/>query, analyze"]
+            LOGS["📝 Logs<br/>query, filter"]
+        end
+    end
+    
+    style BLOB fill:#0078D4,color:white
+    style COSMOS_T fill:#0078D4,color:white
+    style ARG fill:#0078D4,color:white
+    style METRICS fill:#0078D4,color:white
+```
 
 ---
 
@@ -160,45 +198,54 @@ AKS MCP Server extends the Model Context Protocol specifically for Azure Kuberne
 
 ```mermaid
 flowchart TB
-    subgraph "Local Interaction Models"
+    subgraph DESKTOP["💻 Developer Desktop / Laptop"]
         direction TB
-        VSCODE["🖥️ VS Code<br/>+ GitHub Copilot"]
-        CLAUDE["🤖 Claude Desktop"]
-        CURSOR["📝 Cursor IDE"]
+        subgraph "MCP Clients (Local)"
+            VSCODE["🖥️ VS Code<br/>+ GitHub Copilot"]
+            CLAUDE["🤖 Claude Desktop"]
+            CURSOR["📝 Cursor IDE"]
+        end
+        
+        subgraph "Local AKS-MCP"
+            LOCAL_MCP["📡 aks-mcp<br/>(Local Binary)"]
+            LOCAL_TOOLS["🔧 Tools<br/>• kubectl<br/>• az CLI"]
+        end
+        
+        subgraph "Local Auth"
+            AZ_AUTH["🔐 Azure CLI"]
+            KUBECONFIG["📋 kubeconfig"]
+        end
     end
     
-    subgraph "Local AKS-MCP"
-        LOCAL_MCP["📡 aks-mcp<br/>(Local Binary)"]
-        LOCAL_TOOLS["🔧 Tools<br/>• kubectl<br/>• az CLI<br/>• Inspektor Gadget"]
-    end
-    
-    subgraph "Remote Interaction Models"
+    subgraph REMOTE["🌐 Remote Clients"]
         REMOTE_AGENT["🤖 Remote AI Agent"]
         HOLMES["🔍 HolmesGPT"]
         AUTOMATION["⚙️ CI/CD Pipelines"]
     end
     
-    subgraph "In-Cluster AKS-MCP"
-        REMOTE_MCP["📡 aks-mcp Pod"]
-        REMOTE_SVC["🌐 Service<br/>(LoadBalancer/Ingress)"]
-    end
-    
-    subgraph "AKS Cluster"
-        K8S_API["⎈ Kubernetes API"]
+    subgraph CLUSTER["⎈ AKS Cluster"]
+        subgraph "In-Cluster AKS-MCP"
+            REMOTE_MCP["📡 aks-mcp Pod"]
+            REMOTE_SVC["🌐 Service<br/>(LoadBalancer/Ingress)"]
+        end
+        
+        K8S_API["Kubernetes API"]
         WORKLOADS["📦 Workloads"]
-        GADGET["🔬 Inspektor Gadget"]
+        GADGET["🔬 Inspektor Gadget<br/>(DaemonSet)"]
     end
     
-    subgraph "Azure"
-        ARM["☁️ Azure APIs"]
+    subgraph AZURE["☁️ Azure Cloud"]
+        ARM["Azure APIs"]
     end
     
     VSCODE <-->|"stdio"| LOCAL_MCP
     CLAUDE <-->|"stdio"| LOCAL_MCP
     CURSOR <-->|"stdio"| LOCAL_MCP
     LOCAL_MCP --> LOCAL_TOOLS
-    LOCAL_TOOLS -->|"HTTPS"| K8S_API
-    LOCAL_TOOLS -->|"HTTPS"| ARM
+    LOCAL_TOOLS --> AZ_AUTH
+    LOCAL_TOOLS --> KUBECONFIG
+    AZ_AUTH -->|"HTTPS"| ARM
+    KUBECONFIG -->|"HTTPS"| K8S_API
     
     REMOTE_AGENT <-->|"SSE/HTTP"| REMOTE_SVC
     HOLMES <-->|"MCP"| REMOTE_SVC
@@ -210,6 +257,9 @@ flowchart TB
     K8S_API --> WORKLOADS
     K8S_API --> GADGET
     
+    style DESKTOP fill:#f5f5f5,stroke:#333
+    style CLUSTER fill:#326CE5,color:white
+    style AZURE fill:#e6f2ff,stroke:#0078D4
     style LOCAL_MCP fill:#0078D4,color:white
     style REMOTE_MCP fill:#0078D4,color:white
     style GADGET fill:#FF6B35,color:white
@@ -219,7 +269,49 @@ flowchart TB
 
 AKS MCP provides specialized Kubernetes tools including cluster operations, namespace management, pod diagnostics, and eBPF-based observability through Inspektor Gadget.
 
-📚 **Tools Reference**: [AKS MCP Tools](https://learn.microsoft.com/en-us/azure/developer/azure-mcp-server/tools/azure-kubernetes)  
+📚 **Tools Reference**: [AKS MCP Tools](https://learn.microsoft.com/en-us/azure/developer/azure-mcp-server/tools/azure-kubernetes)
+
+```mermaid
+flowchart LR
+    subgraph "AKS MCP Tool Categories"
+        direction TB
+        subgraph "Cluster Management"
+            LIST_CLUSTERS["📋 List Clusters<br/>enumerate AKS clusters"]
+            CREDENTIALS["🔑 Get Credentials<br/>kubeconfig access"]
+            START_STOP["⏯️ Start/Stop<br/>cluster lifecycle"]
+        end
+        
+        subgraph "Kubernetes Operations"
+            KUBECTL["⎈ kubectl Commands<br/>get, describe, logs"]
+            RESOURCES["📦 Resource CRUD<br/>pods, deployments, services"]
+            NAMESPACES["📁 Namespaces<br/>list, create, switch"]
+        end
+        
+        subgraph "Inspektor Gadget (eBPF)"
+            TCP_TRACE["🌐 TCP Trace<br/>connection monitoring"]
+            DNS_TRACE["🔍 DNS Trace<br/>name resolution"]
+            PROCESS["⚙️ Process Monitor<br/>execution tracking"]
+            FILE_OPS["📄 File Operations<br/>open/read/write"]
+        end
+        
+        subgraph "Fleet Management"
+            FLEET_LIST["🌍 List Fleet<br/>multi-cluster view"]
+            FLEET_OPS["🔧 Fleet Operations<br/>cross-cluster actions"]
+        end
+        
+        subgraph "Diagnostics"
+            LOGS["📝 Logs<br/>container logs"]
+            EVENTS["📊 Events<br/>cluster events"]
+            DESCRIBE["🔎 Describe<br/>resource details"]
+        end
+    end
+    
+    style LIST_CLUSTERS fill:#0078D4,color:white
+    style KUBECTL fill:#326CE5,color:white
+    style TCP_TRACE fill:#FF6B35,color:white
+    style FLEET_LIST fill:#6B5B95,color:white
+    style LOGS fill:#00A67E,color:white
+```
 
 
 ### HolmesGPT
@@ -240,19 +332,19 @@ HolmesGPT is an **open-source agentic AI framework** (CNCF Sandbox) that perform
 
 ```mermaid
 flowchart TB
-    subgraph "Input Sources"
+    subgraph INPUTS["📥 Input Sources"]
         ALERT["🚨 Alert<br/>(PagerDuty/OpsGenie/<br/>Prometheus)"]
         TICKET["🎫 Ticket<br/>(Jira/GitHub)"]
         PROMPT["💬 User Prompt<br/>(CLI/Slack)"]
     end
     
-    subgraph "HolmesGPT Agent"
+    subgraph AGENT["💻 HolmesGPT Agent (Local or In-Cluster)"]
         PLANNER["📋 Task Planner<br/>• Analyzes issue<br/>• Creates investigation plan"]
         EXECUTOR["⚙️ Tool Executor<br/>• Runs queries<br/>• Gathers data"]
         ANALYZER["🔍 Hypothesis Refiner<br/>• Correlates data<br/>• Iterates on RCA"]
     end
     
-    subgraph "Data Sources (Toolsets)"
+    subgraph DATA["📊 Data Sources (In-Cluster / External)"]
         K8S_TOOLS["⎈ Kubernetes<br/>• Pod logs<br/>• Events<br/>• kubectl describe"]
         PROM["📊 Prometheus<br/>• Metrics<br/>• PromQL queries"]
         LOKI["📝 Loki/Logs<br/>• Log aggregation"]
@@ -260,11 +352,11 @@ flowchart TB
         MCP_SERVER["📡 MCP Servers<br/>• AKS-MCP<br/>• Remote MCP"]
     end
     
-    subgraph "LLM Provider"
+    subgraph LLM_CLOUD["☁️ LLM Provider (External API)"]
         LLM["🧠 LLM<br/>(Azure OpenAI/<br/>OpenAI/Anthropic)"]
     end
     
-    subgraph "Output"
+    subgraph OUTPUT["📤 Output"]
         RCA["📄 Root Cause Analysis"]
         REMEDIATION["💡 Remediation Steps"]
         SLACK_OUT["📢 Slack/Teams<br/>Notification"]
@@ -273,7 +365,7 @@ flowchart TB
     ALERT --> PLANNER
     TICKET --> PLANNER
     PROMPT --> PLANNER
-    PLANNER <--> LLM
+    PLANNER <-->|"HTTPS"| LLM
     PLANNER --> EXECUTOR
     EXECUTOR --> K8S_TOOLS
     EXECUTOR --> PROM
@@ -281,14 +373,16 @@ flowchart TB
     EXECUTOR --> CUSTOM
     EXECUTOR --> MCP_SERVER
     EXECUTOR --> ANALYZER
-    ANALYZER <--> LLM
+    ANALYZER <-->|"HTTPS"| LLM
     ANALYZER --> RCA
     RCA --> REMEDIATION
     RCA --> SLACK_OUT
     
+    style AGENT fill:#f5f5f5,stroke:#6B5B95,stroke-width:2px
     style PLANNER fill:#6B5B95,color:white
     style LLM fill:#00A67E,color:white
     style MCP_SERVER fill:#0078D4,color:white
+    style LLM_CLOUD fill:#e6f2ff,stroke:#00A67E
 ```
 
 **Key Features:**
@@ -348,48 +442,52 @@ The AKS-MCP server acts as a **universal, protocol-first bridge** between AI age
 
 ```mermaid
 flowchart TB
-    subgraph "User Environment"
+    subgraph DESKTOP["💻 Developer Desktop / Laptop"]
         USER[👤 User/Operator]
         IDE["🖥️ VS Code / IDE<br/>with GitHub Copilot"]
+        
+        subgraph "MCP Protocol Layer (Local)"
+            MCP_SERVER["📡 AKS-MCP Server<br/>(Go binary)"]
+            MCP_TOOLS["🔧 MCP Tools<br/>• call_az<br/>• call_kubectl<br/>• inspektor_gadget<br/>• fleet operations"]
+        end
+        
+        subgraph "Authentication (Local)"
+            AZ_CLI["🔐 Azure CLI Auth<br/>DefaultAzureCredential"]
+            KUBECONFIG["📋 Kubeconfig<br/>RBAC Permissions"]
+        end
     end
     
-    subgraph "AI Layer"
-        LLM["🧠 LLM Provider<br/>(Azure OpenAI / OpenAI / Anthropic)<br/>BYO API Key"]
+    subgraph LLM_CLOUD["☁️ LLM Provider (External)"]
+        LLM["🧠 LLM<br/>(Azure OpenAI / OpenAI / Anthropic)<br/>BYO API Key"]
     end
     
-    subgraph "MCP Protocol Layer"
-        MCP_SERVER["📡 AKS-MCP Server<br/>(Go binary)<br/>MIT License"]
-        MCP_TOOLS["🔧 MCP Tools<br/>• call_az (Azure CLI)<br/>• call_kubectl<br/>• inspektor_gadget<br/>• fleet operations"]
-    end
-    
-    subgraph "Authentication"
-        AZ_CLI["🔐 Azure CLI Auth<br/>DefaultAzureCredential"]
-        KUBECONFIG["📋 Kubeconfig<br/>RBAC Permissions"]
-    end
-    
-    subgraph "Azure Control Plane"
+    subgraph AZURE["☁️ Azure Cloud"]
         ARM["Azure Resource Manager"]
         AKS_API["AKS API"]
     end
     
-    subgraph "Kubernetes Cluster"
+    subgraph CLUSTER["⎈ AKS Cluster"]
         K8S_API["Kubernetes API Server"]
         NODES["Worker Nodes"]
         IG["Inspektor Gadget<br/>DaemonSet (eBPF)"]
     end
     
     USER --> IDE
-    IDE <-->|"MCP Protocol<br/>(stdio/SSE)"| MCP_SERVER
-    IDE <-->|"Prompt/Response"| LLM
+    IDE <-->|"MCP Protocol<br/>(stdio)"| MCP_SERVER
+    IDE <-->|"HTTPS"| LLM
     MCP_SERVER --> MCP_TOOLS
     MCP_TOOLS --> AZ_CLI
     MCP_TOOLS --> KUBECONFIG
-    AZ_CLI -->|"OAuth Token"| ARM
+    AZ_CLI -->|"HTTPS/OAuth"| ARM
     ARM --> AKS_API
-    KUBECONFIG -->|"Bearer Token"| K8S_API
+    KUBECONFIG -->|"HTTPS"| K8S_API
     K8S_API --> NODES
     IG -.->|"eBPF Traces"| K8S_API
     
+    style DESKTOP fill:#f5f5f5,stroke:#333
+    style LLM_CLOUD fill:#e6f2ff,stroke:#00A67E
+    style AZURE fill:#e6f2ff,stroke:#0078D4
+    style CLUSTER fill:#326CE5,color:white
     style MCP_SERVER fill:#0078D4,color:white
     style LLM fill:#00A67E,color:white
     style IG fill:#FF6B35,color:white
@@ -430,7 +528,7 @@ Runs as a local binary on the developer's workstation, using existing Azure CLI 
 
 ```mermaid
 flowchart LR
-    subgraph "Developer Workstation"
+    subgraph DESKTOP["💻 Developer Workstation"]
         direction TB
         VSCODE["VS Code + Copilot"]
         AKS_MCP_BIN["aks-mcp binary<br/>(Go executable)"]
@@ -438,7 +536,7 @@ flowchart LR
         KUBECTL["kubectl<br/>(kubeconfig)"]
     end
     
-    subgraph "External Services"
+    subgraph EXTERNAL["☁️ External Services"]
         LLM_API["LLM API<br/>(OpenAI/Azure OpenAI)"]
         AZURE["Azure ARM APIs"]
         K8S["Kubernetes API Server"]
@@ -451,6 +549,8 @@ flowchart LR
     AZ_CLI -->|"HTTPS/OAuth"| AZURE
     KUBECTL -->|"HTTPS/mTLS"| K8S
     
+    style DESKTOP fill:#f5f5f5,stroke:#333
+    style EXTERNAL fill:#e6f2ff,stroke:#0078D4
     style AKS_MCP_BIN fill:#0078D4,color:white
 ```
 
@@ -465,18 +565,18 @@ Deployed in-cluster using [Helm chart](https://github.com/Azure/aks-mcp/tree/mai
 
 ```mermaid
 flowchart TB
-    subgraph "External"
+    subgraph CLIENTS["🌐 External Clients"]
         CLIENT["MCP Client<br/>(AI Agent/IDE)"]
         LLM["LLM Provider"]
     end
     
-    subgraph "AKS Cluster"
+    subgraph CLUSTER["⎈ AKS Cluster"]
         subgraph "aks-mcp Namespace"
-            MCP_POD["aks-mcp Pod<br/>(Deployment)"]
-            MCP_SVC["Service<br/>(ClusterIP/LoadBalancer)"]
+            MCP_POD["📡 aks-mcp Pod<br/>(Deployment)"]
+            MCP_SVC["🌐 Service<br/>(ClusterIP/LoadBalancer)"]
         end
         
-        subgraph "Authentication"
+        subgraph "Authentication (In-Cluster)"
             WI["Workload Identity<br/>(Federated Token)"]
             MI["Managed Identity<br/>(User/System Assigned)"]
             SA["ServiceAccount"]
@@ -487,11 +587,11 @@ flowchart TB
         end
         
         subgraph "gadget Namespace"
-            IG_DS["Inspektor Gadget<br/>DaemonSet"]
+            IG_DS["🔬 Inspektor Gadget<br/>DaemonSet"]
         end
     end
     
-    subgraph "Azure"
+    subgraph AZURE["☁️ Azure Cloud"]
         ARM["Azure Resource Manager"]
         AAD["Microsoft Entra ID"]
     end
@@ -508,8 +608,12 @@ flowchart TB
     MCP_POD -->|"In-Cluster<br/>(ServiceAccount)"| API
     API --> IG_DS
     
+    style CLIENTS fill:#f5f5f5,stroke:#333
+    style CLUSTER fill:#326CE5,color:white
+    style AZURE fill:#e6f2ff,stroke:#0078D4
     style MCP_POD fill:#0078D4,color:white
     style WI fill:#00A67E,color:white
+    style IG_DS fill:#FF6B35,color:white
 ```
 
 #### Authentication Methods
@@ -545,23 +649,23 @@ Runs locally in a Docker container, inheriting the user's Azure and Kubernetes p
 
 ```mermaid
 flowchart TB
-    subgraph "User Workstation"
+    subgraph DESKTOP["💻 User Workstation"]
         USER["👤 User"]
         AZ_CLI_CMD["az aks agent<br/>'why is my pod failing?'"]
         DOCKER["Docker Runtime"]
-        HOLMES["HolmesGPT Container<br/>(from Docker Hub)"]
+        HOLMES["🔍 HolmesGPT Container<br/>(from Docker Hub)"]
+        
+        subgraph "User Credentials (Local)"
+            AZ_CRED["🔐 Azure CLI Token<br/>(az login)"]
+            KUBE_CRED["📋 Kubeconfig<br/>(kubectl context)"]
+            LLM_KEY["🔑 LLM API Key<br/>(BYO)"]
+        end
     end
     
-    subgraph "User Credentials"
-        AZ_CRED["Azure CLI Token<br/>(az login)"]
-        KUBE_CRED["Kubeconfig<br/>(kubectl context)"]
-        LLM_KEY["LLM API Key<br/>(BYO)"]
-    end
-    
-    subgraph "External APIs"
-        LLM_API["LLM Provider<br/>(Azure OpenAI/OpenAI/Anthropic)"]
+    subgraph EXTERNAL["☁️ External APIs"]
+        LLM_API["🧠 LLM Provider<br/>(Azure OpenAI/OpenAI/Anthropic)"]
         AZURE_API["Azure APIs"]
-        K8S_API["Kubernetes API"]
+        K8S_API["⎈ Kubernetes API"]
     end
     
     USER --> AZ_CLI_CMD
@@ -570,10 +674,12 @@ flowchart TB
     HOLMES --> AZ_CRED
     HOLMES --> KUBE_CRED
     HOLMES --> LLM_KEY
-    AZ_CRED -->|"OAuth"| AZURE_API
-    KUBE_CRED -->|"Bearer Token"| K8S_API
-    LLM_KEY -->|"API Call"| LLM_API
+    AZ_CRED -->|"HTTPS/OAuth"| AZURE_API
+    KUBE_CRED -->|"HTTPS"| K8S_API
+    LLM_KEY -->|"HTTPS"| LLM_API
     
+    style DESKTOP fill:#f5f5f5,stroke:#333
+    style EXTERNAL fill:#e6f2ff,stroke:#0078D4
     style HOLMES fill:#6B5B95,color:white
     style AZ_CLI_CMD fill:#0078D4,color:white
 ```
@@ -602,14 +708,14 @@ Runs as a pod inside the AKS cluster with explicitly scoped Kubernetes RBAC perm
 
 ```mermaid
 flowchart TB
-    subgraph "User Environment"
+    subgraph DESKTOP["💻 User Environment"]
         USER["👤 User"]
         CLI["az aks agent<br/>--cluster-mode"]
     end
     
-    subgraph "AKS Cluster"
+    subgraph CLUSTER["⎈ AKS Cluster"]
         subgraph "agent Namespace"
-            AGENT_POD["HolmesGPT Pod<br/>(from MCR)"]
+            AGENT_POD["🔍 HolmesGPT Pod<br/>(from MCR)"]
             AGENT_SA["ServiceAccount"]
             AGENT_ROLE["ClusterRole/Role<br/>(Scoped RBAC)"]
         end
@@ -619,18 +725,18 @@ flowchart TB
             METRICS["Metrics Server"]
         end
         
-        subgraph "Observability"
-            PROM["Prometheus"]
-            LOGS["Log Aggregator"]
+        subgraph "Observability (In-Cluster)"
+            PROM["📊 Prometheus"]
+            LOGS["📝 Log Aggregator"]
         end
         
         subgraph "MCP Integration (Optional)"
-            AKS_MCP["AKS-MCP Server"]
+            AKS_MCP["📡 AKS-MCP Server"]
         end
     end
     
-    subgraph "External"
-        LLM["LLM Provider"]
+    subgraph EXTERNAL["☁️ External Services"]
+        LLM["🧠 LLM Provider"]
         MCR["Microsoft Container Registry"]
         AZURE["Azure APIs"]
     end
@@ -644,10 +750,13 @@ flowchart TB
     AGENT_POD --> PROM
     AGENT_POD --> LOGS
     AGENT_POD <--> AKS_MCP
-    AGENT_POD -->|"LLM Calls"| LLM
+    AGENT_POD -->|"HTTPS"| LLM
     MCR -.->|"Image Pull"| AGENT_POD
     AKS_MCP --> AZURE
     
+    style DESKTOP fill:#f5f5f5,stroke:#333
+    style CLUSTER fill:#326CE5,color:white
+    style EXTERNAL fill:#e6f2ff,stroke:#0078D4
     style AGENT_POD fill:#6B5B95,color:white
     style AKS_MCP fill:#0078D4,color:white
 ```
