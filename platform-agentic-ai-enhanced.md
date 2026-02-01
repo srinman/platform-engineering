@@ -683,6 +683,115 @@ flowchart TB
 
 ---
 
+## Component Comparison
+
+### Overview: Azure MCP vs AKS MCP vs HolmesGPT vs Agent CLI
+
+| Aspect | Azure MCP | AKS MCP | HolmesGPT | Agent CLI for AKS |
+|--------|-----------|---------|-----------|-------------------|
+| **What it is** | MCP server for Azure services | MCP server for AKS/Kubernetes | Agentic AI framework for RCA | Azure CLI extension for AKS troubleshooting |
+| **Primary Purpose** | Manage Azure resources via AI | Manage AKS clusters via AI | Root cause analysis & diagnostics | Natural language AKS troubleshooting |
+| **Scope** | All Azure services | AKS + Kubernetes + Fleet | Any Kubernetes + observability | AKS clusters specifically |
+| **Protocol** | MCP (Model Context Protocol) | MCP (Model Context Protocol) | Custom agentic framework | Wraps HolmesGPT |
+| **License** | MIT | MIT | MIT (CNCF Sandbox) | Proprietary (Azure CLI) |
+| **Maintained by** | Microsoft | Microsoft | Robusta.dev + Microsoft | Microsoft |
+
+### Tools Comparison
+
+#### Azure MCP Tools
+
+| Tool Category | Examples | Use Cases |
+|---------------|----------|-----------|
+| **Storage** | Blob operations, container management | Upload/download files, manage containers |
+| **Cosmos DB** | Query, CRUD operations | Database management, data exploration |
+| **App Configuration** | Key-value operations | Configuration management |
+| **Resource Graph** | Query Azure resources | Resource inventory, compliance |
+| **Monitor** | Metrics, logs, alerts | Observability, monitoring |
+| **General** | Subscription, resource group operations | Resource management |
+
+#### AKS MCP Tools
+
+| Tool Category | Examples | Use Cases |
+|---------------|----------|-----------|
+| **Cluster Management** | List clusters, get credentials, start/stop | Cluster lifecycle operations |
+| **Kubernetes Operations** | kubectl commands, resource CRUD | Workload management |
+| **Inspektor Gadget** | TCP trace, DNS trace, process monitoring | Real-time eBPF observability |
+| **Fleet Management** | Multi-cluster operations | Enterprise-scale management |
+| **Diagnostics** | Logs, events, describe | Troubleshooting |
+
+#### HolmesGPT Toolsets
+
+| Toolset | Data Sources | Use Cases |
+|---------|--------------|-----------|
+| **Kubernetes** | Pods, events, logs, describe | K8s troubleshooting |
+| **Prometheus** | Metrics, PromQL | Performance analysis |
+| **Loki** | Log aggregation | Log-based RCA |
+| **Cloud Providers** | AWS, GCP, Azure APIs | Cloud resource issues |
+| **APM Tools** | Datadog, NewRelic, Dynatrace | Application performance |
+| **Custom** | Confluence, Jira, PagerDuty | Incident correlation |
+| **MCP Servers** | AKS-MCP, custom MCP | Extended capabilities |
+
+### When to Use What?
+
+```mermaid
+flowchart TD
+    START["🤔 What do you need?"]
+    
+    START --> Q1{"Managing Azure<br/>resources?"}
+    Q1 -->|Yes| AZURE_MCP["✅ Azure MCP<br/>Storage, Cosmos DB,<br/>App Config, etc."]
+    
+    Q1 -->|No| Q2{"Working with<br/>AKS/Kubernetes?"}
+    Q2 -->|Yes| Q3{"Need real-time<br/>observability?"}
+    
+    Q3 -->|Yes| AKS_MCP["✅ AKS MCP<br/>+ Inspektor Gadget<br/>TCP/DNS/Process tracing"]
+    
+    Q3 -->|No| Q4{"Need root cause<br/>analysis?"}
+    Q4 -->|Yes| Q5{"Prefer CLI or<br/>IDE integration?"}
+    
+    Q5 -->|CLI| AGENT_CLI["✅ Agent CLI<br/>az aks agent 'why is pod failing?'"]
+    Q5 -->|IDE| HOLMES["✅ HolmesGPT<br/>+ VS Code/Claude Desktop"]
+    
+    Q4 -->|No| AKS_MCP2["✅ AKS MCP<br/>kubectl, cluster ops"]
+    
+    Q2 -->|No| AZURE_MCP
+    
+    style AZURE_MCP fill:#0078D4,color:white
+    style AKS_MCP fill:#0078D4,color:white
+    style AKS_MCP2 fill:#0078D4,color:white
+    style AGENT_CLI fill:#6B5B95,color:white
+    style HOLMES fill:#00A67E,color:white
+```
+
+### Integration Patterns
+
+| Pattern | Components | Description |
+|---------|------------|-------------|
+| **IDE-centric** | VS Code + GitHub Copilot + AKS MCP | Interactive development & troubleshooting |
+| **CLI-centric** | `az aks agent` (Agent CLI) | Quick terminal-based diagnostics |
+| **Full Observability** | AKS MCP + Inspektor Gadget | Real-time eBPF tracing with AI |
+| **Enterprise RCA** | HolmesGPT + AKS MCP + Prometheus | Comprehensive root cause analysis |
+| **Multi-cloud** | HolmesGPT + multiple MCP servers | Cross-platform troubleshooting |
+
+### Feature Matrix
+
+| Feature | Azure MCP | AKS MCP | HolmesGPT | Agent CLI |
+|---------|:---------:|:-------:|:---------:|:---------:|
+| Azure resource management | ✅ | ⚠️ Limited | ❌ | ❌ |
+| Kubernetes operations | ❌ | ✅ | ✅ | ✅ |
+| Real-time eBPF tracing | ❌ | ✅ | ❌ | ❌ |
+| Root cause analysis | ❌ | ⚠️ Basic | ✅ | ✅ |
+| Multi-cluster (Fleet) | ❌ | ✅ | ❌ | ❌ |
+| Prometheus integration | ❌ | ❌ | ✅ | ✅ |
+| Custom runbooks | ❌ | ❌ | ✅ | ✅ |
+| IDE integration | ✅ | ✅ | ✅ | ❌ |
+| CLI usage | ❌ | ❌ | ✅ | ✅ |
+| In-cluster deployment | ❌ | ✅ | ✅ | ✅ |
+| CNCF project | ❌ | ❌ | ✅ | ❌ |
+
+> **Legend:** ✅ Full support | ⚠️ Partial/Limited | ❌ Not supported
+
+---
+
 ## References
 
 | Resource | Link |
