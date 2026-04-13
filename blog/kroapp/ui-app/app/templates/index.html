@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>kro Platform UI — {{ namespace }}</title>
+  <link href="/static/bootstrap.min.css" rel="stylesheet" />
+  <style>
+    body { background: #f0f4f8; }
+    .navbar-brand { font-weight: 700; letter-spacing: .5px; }
+    .ns-badge { font-size: .75rem; vertical-align: middle; }
+    .tab-content { background: #fff; border: 1px solid #dee2e6; border-top: 0;
+                   border-radius: 0 0 .5rem .5rem; padding: 1.5rem; }
+    .nav-tabs .nav-link.active { font-weight: 600; }
+    table thead { background: #1565C0; color: #fff; }
+    .btn-create { background: #2E7D32; border-color: #1B5E20; color: #fff; }
+    .btn-create:hover { background: #1B5E20; color: #fff; }
+    .state-active { color: #2E7D32; font-weight: 600; }
+    .state-other  { color: #E65100; }
+    .refresh-btn  { font-size: .8rem; }
+    #toast-container { position: fixed; bottom: 1rem; right: 1rem; z-index: 9999; }
+  </style>
+</head>
+<body>
+
+<!-- ── Navbar ─────────────────────────────────────────────────────────────── -->
+<nav class="navbar navbar-dark" style="background:#0D47A1;">
+  <div class="container-fluid">
+    <span class="navbar-brand">kro Platform UI</span>
+    <span class="badge bg-light text-dark ns-badge">
+      workload namespace: <strong>{{ namespace }}</strong>
+    </span>
+  </div>
+</nav>
+
+<div class="container-fluid mt-3">
+
+  <!-- ── Tabs ─────────────────────────────────────────────────────────────── -->
+  <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-cost" type="button">CostOptimizedApp</button></li>
+    <li class="nav-item"><button class="nav-link"        data-bs-toggle="tab" data-bs-target="#tab-ha"   type="button">HighlyAvailableApp</button></li>
+    <li class="nav-item"><button class="nav-link"        data-bs-toggle="tab" data-bs-target="#tab-pods" type="button">Pods</button></li>
+    <li class="nav-item"><button class="nav-link"        data-bs-toggle="tab" data-bs-target="#tab-dep"  type="button">Deployments</button></li>
+    <li class="nav-item"><button class="nav-link"        data-bs-toggle="tab" data-bs-target="#tab-svc"  type="button">Services</button></li>
+    <li class="nav-item"><button class="nav-link"        data-bs-toggle="tab" data-bs-target="#tab-pdb"  type="button">PDBs</button></li>
+  </ul>
+
+  <div class="tab-content" id="mainTabsContent">
+
+    <!-- ── CostOptimizedApp ─────────────────────────────────────────────── -->
+    <div class="tab-pane fade show active" id="tab-cost" role="tabpanel">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">CostOptimizedApp instances <span class="badge bg-secondary" id="cost-count">—</span></h5>
+        <div>
+          <button class="btn btn-outline-secondary btn-sm refresh-btn me-2" onclick="loadCostApps()">⟳ Refresh</button>
+          <button class="btn btn-create btn-sm" data-bs-toggle="modal" data-bs-target="#modal-cost">+ Create</button>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle">
+          <thead><tr><th>Name</th><th>Image</th><th>Port</th><th>State</th><th></th></tr></thead>
+          <tbody id="cost-tbody"><tr><td colspan="5" class="text-center text-muted">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── HighlyAvailableApp ────────────────────────────────────────────── -->
+    <div class="tab-pane fade" id="tab-ha" role="tabpanel">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">HighlyAvailableApp instances <span class="badge bg-secondary" id="ha-count">—</span></h5>
+        <div>
+          <button class="btn btn-outline-secondary btn-sm refresh-btn me-2" onclick="loadHaApps()">⟳ Refresh</button>
+          <button class="btn btn-create btn-sm" data-bs-toggle="modal" data-bs-target="#modal-ha">+ Create</button>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle">
+          <thead><tr><th>Name</th><th>Image</th><th>Port</th><th>State</th><th></th></tr></thead>
+          <tbody id="ha-tbody"><tr><td colspan="5" class="text-center text-muted">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Pods ─────────────────────────────────────────────────────────── -->
+    <div class="tab-pane fade" id="tab-pods" role="tabpanel">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">Pods <span class="badge bg-secondary" id="pods-count">—</span></h5>
+        <button class="btn btn-outline-secondary btn-sm refresh-btn" onclick="loadPods()">⟳ Refresh</button>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle">
+          <thead><tr><th>Name</th><th>Phase</th><th>Ready</th><th>Node</th></tr></thead>
+          <tbody id="pods-tbody"><tr><td colspan="4" class="text-center text-muted">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Deployments ───────────────────────────────────────────────────── -->
+    <div class="tab-pane fade" id="tab-dep" role="tabpanel">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">Deployments <span class="badge bg-secondary" id="dep-count">—</span></h5>
+        <button class="btn btn-outline-secondary btn-sm refresh-btn" onclick="loadDeployments()">⟳ Refresh</button>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle">
+          <thead><tr><th>Name</th><th>Desired</th><th>Ready</th><th>Available</th></tr></thead>
+          <tbody id="dep-tbody"><tr><td colspan="4" class="text-center text-muted">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Services ─────────────────────────────────────────────────────── -->
+    <div class="tab-pane fade" id="tab-svc" role="tabpanel">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">Services <span class="badge bg-secondary" id="svc-count">—</span></h5>
+        <button class="btn btn-outline-secondary btn-sm refresh-btn" onclick="loadServices()">⟳ Refresh</button>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle">
+          <thead><tr><th>Name</th><th>Type</th><th>ClusterIP</th><th>Ports</th></tr></thead>
+          <tbody id="svc-tbody"><tr><td colspan="4" class="text-center text-muted">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── PDBs ──────────────────────────────────────────────────────────── -->
+    <div class="tab-pane fade" id="tab-pdb" role="tabpanel">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">PodDisruptionBudgets <span class="badge bg-secondary" id="pdb-count">—</span></h5>
+        <button class="btn btn-outline-secondary btn-sm refresh-btn" onclick="loadPdbs()">⟳ Refresh</button>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle">
+          <thead><tr><th>Name</th><th>MinAvailable</th><th>CurrentHealthy</th><th>DisruptionsAllowed</th></tr></thead>
+          <tbody id="pdb-tbody"><tr><td colspan="4" class="text-center text-muted">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /tab-content -->
+</div><!-- /container -->
+
+<!-- ── Create CostOptimizedApp modal ──────────────────────────────────────── -->
+<div class="modal fade" id="modal-cost" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#1565C0; color:#fff;">
+        <h5 class="modal-title">Create CostOptimizedApp</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="form-cost">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Name <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="cost-name" placeholder="e.g. my-cost-app" required />
+            <div class="form-text">Lowercase letters, numbers, and hyphens only.</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Image</label>
+            <input type="text" class="form-control" id="cost-image" placeholder="nginx:1.27" />
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Port</label>
+            <input type="number" class="form-control" id="cost-port" placeholder="80" min="1" max="65535" />
+          </div>
+        </form>
+        <div id="cost-error" class="alert alert-danger d-none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-create" onclick="createCostApp()">Create</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Create HighlyAvailableApp modal ────────────────────────────────────── -->
+<div class="modal fade" id="modal-ha" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#2E7D32; color:#fff;">
+        <h5 class="modal-title">Create HighlyAvailableApp</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="form-ha">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Name <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="ha-name" placeholder="e.g. my-ha-app" required />
+            <div class="form-text">Lowercase letters, numbers, and hyphens only.</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Image</label>
+            <input type="text" class="form-control" id="ha-image" placeholder="nginx:1.27" />
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Port</label>
+            <input type="number" class="form-control" id="ha-port" placeholder="80" min="1" max="65535" />
+          </div>
+        </form>
+        <div id="ha-error" class="alert alert-danger d-none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-success" onclick="createHaApp()">Create</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Toast container ────────────────────────────────────────────────────── -->
+<div id="toast-container"></div>
+
+<script src="/static/bootstrap.bundle.min.js"></script>
+<script>
+// ─── helpers ──────────────────────────────────────────────────────────────
+
+function showToast(msg, ok = true) {
+  const id = `t${Date.now()}`;
+  const div = document.createElement('div');
+  div.innerHTML = `
+    <div id="${id}" class="toast align-items-center text-white border-0"
+         style="background:${ok ? '#2E7D32' : '#B71C1C'};" role="alert">
+      <div class="d-flex">
+        <div class="toast-body">${msg}</div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+      </div>
+    </div>`;
+  document.getElementById('toast-container').appendChild(div.firstElementChild);
+  new bootstrap.Toast(document.getElementById(id), { delay: 3500 }).show();
+}
+
+async function apiFetch(url, opts = {}) {
+  const resp = await fetch(url, opts);
+  if (!resp.ok) {
+    let msg = `HTTP ${resp.status}`;
+    try { const j = await resp.json(); msg = JSON.stringify(j.error ?? j); } catch (_) {}
+    throw new Error(msg);
+  }
+  return resp.json();
+}
+
+function stateBadge(state) {
+  const cls = state === 'Active' ? 'state-active' : 'state-other';
+  return `<span class="${cls}">${state}</span>`;
+}
+
+// ─── CostOptimizedApp ─────────────────────────────────────────────────────
+
+async function loadCostApps() {
+  try {
+    const items = await apiFetch('/api/costoptimizedapps');
+    document.getElementById('cost-count').textContent = items.length;
+    document.getElementById('cost-tbody').innerHTML = items.length
+      ? items.map(r => `
+          <tr>
+            <td><strong>${r.name}</strong></td>
+            <td><code>${r.image}</code></td>
+            <td>${r.port}</td>
+            <td>${stateBadge(r.state)}</td>
+            <td class="text-end">
+              <button class="btn btn-outline-danger btn-sm"
+                      onclick="deleteCostApp('${r.name}')">Delete</button>
+            </td>
+          </tr>`).join('')
+      : `<tr><td colspan="5" class="text-center text-muted">No instances found.</td></tr>`;
+  } catch (e) {
+    document.getElementById('cost-tbody').innerHTML =
+      `<tr><td colspan="5" class="text-danger">${e.message}</td></tr>`;
+  }
+}
+
+async function createCostApp() {
+  const errEl = document.getElementById('cost-error');
+  errEl.classList.add('d-none');
+  const name  = document.getElementById('cost-name').value.trim();
+  const image = document.getElementById('cost-image').value.trim() || 'nginx:1.27';
+  const port  = parseInt(document.getElementById('cost-port').value) || 80;
+  if (!name) { errEl.textContent = 'Name is required.'; errEl.classList.remove('d-none'); return; }
+  try {
+    await apiFetch('/api/costoptimizedapps', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, image, port }),
+    });
+    bootstrap.Modal.getInstance(document.getElementById('modal-cost')).hide();
+    document.getElementById('form-cost').reset();
+    showToast(`CostOptimizedApp "${name}" created.`);
+    await loadCostApps();
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.classList.remove('d-none');
+  }
+}
+
+async function deleteCostApp(name) {
+  if (!confirm(`Delete CostOptimizedApp "${name}"?`)) return;
+  try {
+    await apiFetch(`/api/costoptimizedapps/${name}`, { method: 'DELETE' });
+    showToast(`CostOptimizedApp "${name}" deleted.`);
+    await loadCostApps();
+  } catch (e) { showToast(e.message, false); }
+}
+
+// ─── HighlyAvailableApp ───────────────────────────────────────────────────
+
+async function loadHaApps() {
+  try {
+    const items = await apiFetch('/api/highlyavailableapps');
+    document.getElementById('ha-count').textContent = items.length;
+    document.getElementById('ha-tbody').innerHTML = items.length
+      ? items.map(r => `
+          <tr>
+            <td><strong>${r.name}</strong></td>
+            <td><code>${r.image}</code></td>
+            <td>${r.port}</td>
+            <td>${stateBadge(r.state)}</td>
+            <td class="text-end">
+              <button class="btn btn-outline-danger btn-sm"
+                      onclick="deleteHaApp('${r.name}')">Delete</button>
+            </td>
+          </tr>`).join('')
+      : `<tr><td colspan="5" class="text-center text-muted">No instances found.</td></tr>`;
+  } catch (e) {
+    document.getElementById('ha-tbody').innerHTML =
+      `<tr><td colspan="5" class="text-danger">${e.message}</td></tr>`;
+  }
+}
+
+async function createHaApp() {
+  const errEl = document.getElementById('ha-error');
+  errEl.classList.add('d-none');
+  const name  = document.getElementById('ha-name').value.trim();
+  const image = document.getElementById('ha-image').value.trim() || 'nginx:1.27';
+  const port  = parseInt(document.getElementById('ha-port').value) || 80;
+  if (!name) { errEl.textContent = 'Name is required.'; errEl.classList.remove('d-none'); return; }
+  try {
+    await apiFetch('/api/highlyavailableapps', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, image, port }),
+    });
+    bootstrap.Modal.getInstance(document.getElementById('modal-ha')).hide();
+    document.getElementById('form-ha').reset();
+    showToast(`HighlyAvailableApp "${name}" created.`);
+    await loadHaApps();
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.classList.remove('d-none');
+  }
+}
+
+async function deleteHaApp(name) {
+  if (!confirm(`Delete HighlyAvailableApp "${name}"?`)) return;
+  try {
+    await apiFetch(`/api/highlyavailableapps/${name}`, { method: 'DELETE' });
+    showToast(`HighlyAvailableApp "${name}" deleted.`);
+    await loadHaApps();
+  } catch (e) { showToast(e.message, false); }
+}
+
+// ─── Read-only views ──────────────────────────────────────────────────────
+
+async function loadPods() {
+  try {
+    const items = await apiFetch('/api/pods');
+    document.getElementById('pods-count').textContent = items.length;
+    document.getElementById('pods-tbody').innerHTML = items.length
+      ? items.map(r => `
+          <tr>
+            <td>${r.name}</td>
+            <td><span class="badge ${r.phase === 'Running' ? 'bg-success' : 'bg-warning text-dark'}">${r.phase}</span></td>
+            <td>${r.ready}</td>
+            <td><small class="text-muted">${r.node}</small></td>
+          </tr>`).join('')
+      : `<tr><td colspan="4" class="text-center text-muted">No pods found.</td></tr>`;
+  } catch (e) {
+    document.getElementById('pods-tbody').innerHTML =
+      `<tr><td colspan="4" class="text-danger">${e.message}</td></tr>`;
+  }
+}
+
+async function loadDeployments() {
+  try {
+    const items = await apiFetch('/api/deployments');
+    document.getElementById('dep-count').textContent = items.length;
+    document.getElementById('dep-tbody').innerHTML = items.length
+      ? items.map(r => `
+          <tr>
+            <td><strong>${r.name}</strong></td>
+            <td>${r.desired}</td>
+            <td>${r.ready}</td>
+            <td>${r.available}</td>
+          </tr>`).join('')
+      : `<tr><td colspan="4" class="text-center text-muted">No deployments found.</td></tr>`;
+  } catch (e) {
+    document.getElementById('dep-tbody').innerHTML =
+      `<tr><td colspan="4" class="text-danger">${e.message}</td></tr>`;
+  }
+}
+
+async function loadServices() {
+  try {
+    const items = await apiFetch('/api/services');
+    document.getElementById('svc-count').textContent = items.length;
+    document.getElementById('svc-tbody').innerHTML = items.length
+      ? items.map(r => `
+          <tr>
+            <td><strong>${r.name}</strong></td>
+            <td>${r.type}</td>
+            <td><code>${r.cluster_ip}</code></td>
+            <td><small>${r.ports}</small></td>
+          </tr>`).join('')
+      : `<tr><td colspan="4" class="text-center text-muted">No services found.</td></tr>`;
+  } catch (e) {
+    document.getElementById('svc-tbody').innerHTML =
+      `<tr><td colspan="4" class="text-danger">${e.message}</td></tr>`;
+  }
+}
+
+async function loadPdbs() {
+  try {
+    const items = await apiFetch('/api/pdbs');
+    document.getElementById('pdb-count').textContent = items.length;
+    document.getElementById('pdb-tbody').innerHTML = items.length
+      ? items.map(r => `
+          <tr>
+            <td><strong>${r.name}</strong></td>
+            <td>${r.min_available}</td>
+            <td>${r.current_healthy}</td>
+            <td>${r.disruptions_allowed}</td>
+          </tr>`).join('')
+      : `<tr><td colspan="4" class="text-center text-muted">No PDBs found.</td></tr>`;
+  } catch (e) {
+    document.getElementById('pdb-tbody').innerHTML =
+      `<tr><td colspan="4" class="text-danger">${e.message}</td></tr>`;
+  }
+}
+
+// ─── Auto-load on tab switch ──────────────────────────────────────────────
+
+const tabLoaders = {
+  'tab-cost': loadCostApps,
+  'tab-ha':   loadHaApps,
+  'tab-pods': loadPods,
+  'tab-dep':  loadDeployments,
+  'tab-svc':  loadServices,
+  'tab-pdb':  loadPdbs,
+};
+
+document.querySelectorAll('button[data-bs-toggle="tab"]').forEach(btn => {
+  btn.addEventListener('shown.bs.tab', e => {
+    const target = e.target.getAttribute('data-bs-target').slice(1);
+    tabLoaders[target]?.();
+  });
+});
+
+// load the default visible tab
+loadCostApps();
+</script>
+</body>
+</html>

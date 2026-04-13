@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kro-ui
+  namespace: app1admin
+  labels:
+    app: kro-ui
+spec:
+  type: LoadBalancer
+  # Restrict access to known IPs only.
+  # Add your proxy's egress IP if your browser routes through a corporate proxy.
+  # Find it by opening https://ifconfig.me in your browser (not a terminal).
+  loadBalancerSourceRanges:
+    - "<YOUR_EGRESS_IP>/32"       # direct egress IP (terminal / personal laptop)
+    # - "PROXY_EGRESS_IP/32"    # corporate proxy egress IP — uncomment and fill in
+  selector:
+    app: kro-ui
+  ports:
+    - name: http
+      port: 80
+      targetPort: 5000
+      protocol: TCP

@@ -1,0 +1,71 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Role: full CRUD on kro-managed CRD instances in app1
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kro-app-manager
+  namespace: app1
+rules:
+  - apiGroups: ["kro.run"]
+    resources: ["costoptimizedapps", "highlyavailableapps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# Role: read-only access to standard Kubernetes objects in app1
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: app1-reader
+  namespace: app1
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "services", "endpoints", "events", "configmaps", "replicationcontrollers"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets", "statefulsets", "daemonsets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["policy"]
+    resources: ["poddisruptionbudgets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["get", "list", "watch"]
+
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# RoleBinding: bind kro-app-manager to uiappsa (cross-namespace: SA in app1admin)
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kro-app-manager-binding
+  namespace: app1
+subjects:
+  - kind: ServiceAccount
+    name: uiappsa
+    namespace: app1admin
+roleRef:
+  kind: Role
+  name: kro-app-manager
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# RoleBinding: bind app1-reader to uiappsa (cross-namespace: SA in app1admin)
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: app1-reader-binding
+  namespace: app1
+subjects:
+  - kind: ServiceAccount
+    name: uiappsa
+    namespace: app1admin
+roleRef:
+  kind: Role
+  name: app1-reader
+  apiGroup: rbac.authorization.k8s.io

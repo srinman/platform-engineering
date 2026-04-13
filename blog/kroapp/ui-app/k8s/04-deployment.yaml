@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kro-ui
+  namespace: app1admin
+  labels:
+    app: kro-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kro-ui
+  template:
+    metadata:
+      labels:
+        app: kro-ui
+    spec:
+      serviceAccountName: uiappsa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      containers:
+        - name: kro-ui
+          # Replace with your ACR or registry image after building:
+          #   docker build -t srinmantest.azurecr.io/kro-ui:latest .
+          #   docker push srinmantest.azurecr.io/kro-ui:latest
+          image: srinmantest.azurecr.io/kro-ui:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5000
+              name: http
+          env:
+            - name: APP1_NAMESPACE
+              value: "app1"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false   # Flask writes .pyc at startup; set true if using --no-compile
+            capabilities:
+              drop: ["ALL"]
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      automountServiceAccountToken: true
