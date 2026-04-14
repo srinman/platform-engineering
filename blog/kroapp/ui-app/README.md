@@ -1,6 +1,6 @@
 # kro Platform UI
 
-A lightweight Flask web application that runs in the `app1admin` namespace and lets you manage `CostOptimizedApp` and `HighlyAvailableApp` kro instances in the `app1` namespace. It also provides read-only views of Pods, Deployments, Services, and PodDisruptionBudgets in `app1`.
+This demo shows how platform teams can use `kro` to define internal platform contracts and expose them through a simple UI or REST calls — a practical example of platform engineering in action. The UI itself is a lightweight Flask app, built with AI agents, that runs in the `app1admin` namespace. It lets you create and manage `CostOptimizedApp` and `HighlyAvailableApp` kro instances in the `app1` namespace, and provides read-only views of Pods, Deployments, Services, and PodDisruptionBudgets. 
 
 ## Architecture
 
@@ -73,27 +73,188 @@ Both roles are bound to `uiappsa` (in `app1admin`) via cross-namespace `RoleBind
 
 ### 1. Prerequisites
 
-This walkthrough picks up directly after completing the steps in [index.md](../index.md). At that point you already have:
+You need the following tools available locally:
 
-- A zonal AKS cluster running in `westus2` with credentials downloaded
-- `kro` installed in `kro-system`
-- Both `ResourceGraphDefinition` objects (`cost-optimized-app` and `highly-available-app`) registered and `Active`
+- Azure CLI
+- `kubectl`
+- `helm`
 
-Re-export the environment variables that were set in `index.md` plus add the ACR name:
+#### 1.1 Set environment variables
+
+Set these up front — all subsequent commands reference them:
 
 ```bash
 export RESOURCE_GROUP="rg-kro-simple-demo"
 export CLUSTER_NAME="aks-kro-simple-demo"
-export LOCATION="westus2"
-export ACR_NAME="srinmantest"
+export LOCATION="westus"
+export ACR_NAME="<your-acr-name>"
 export IMAGE="${ACR_NAME}.azurecr.io/kro-ui:latest"
 ```
 
-Confirm the cluster context is correct and both RGDs are active before continuing:
+#### 1.2 Create an AKS cluster
+
+This example uses a simple 3-node cluster in `westus` without explicit availability zone pinning, to keep the setup straightforward. The `HighlyAvailableApp` RGD still contains topology spread constraints (`ScheduleAnyway`), so it will express the right intent even without enforced zone pinning.
+
+> **Want explicit zone spreading?** If your subscription and region support AKS availability zones (e.g. `eastus` with zones 1, 2, 3), add `--zones 1 2 3` to the `az aks create` command below. Each node will then be placed in a separate zone and the `HighlyAvailableApp` spread constraints will enforce true zone distribution.
 
 ```bash
-kubectl config current-context
+az group create \
+  --name "$RESOURCE_GROUP" \
+  --location "$LOCATION"
 
+az aks create \
+  --resource-group "$RESOURCE_GROUP" \
+  --name "$CLUSTER_NAME" \
+  --location "$LOCATION" \
+  --node-count 3 \
+  --generate-ssh-keys
+
+az aks get-credentials \
+  --resource-group "$RESOURCE_GROUP" \
+  --name "$CLUSTER_NAME" \
+  --overwrite-existing
+
+kubectl get nodes
+```
+
+#### 1.3 Install kro
+
+```bash
+helm install kro oci://registry.k8s.io/kro/charts/kro \
+  --namespace kro-system \
+  --create-namespace
+
+helm list -n kro-system
+kubectl get pods -n kro-system
+```
+
+Wait until the `kro` pod is `Running` before proceeding.
+
+#### 1.4 Register the ResourceGraphDefinitions
+
+Apply both RGDs that the UI app manages:
+
+```bash
+kubectl apply -f - <<'EOF'
+apiVersion: kro.run/v1alpha1
+kind: ResourceGraphDefinition
+metadata:
+  name: cost-optimized-app
+spec:
+  schema:
+    apiVersion: v1alpha1
+    kind: CostOptimizedApp
+    spec:
+      image: string | default="nginx:1.27"
+      port: integer | default=80
+  resources:
+    - id: deployment
+      template:
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: ${schema.metadata.name}
+          namespace: ${schema.metadata.namespace}
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app: ${schema.metadata.name}
+          template:
+            metadata:
+              labels:
+                app: ${schema.metadata.name}
+            spec:
+              containers:
+                - name: app
+                  image: ${schema.spec.image}
+                  ports:
+                    - containerPort: ${schema.spec.port}
+    - id: service
+      template:
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: ${schema.metadata.name}
+          namespace: ${schema.metadata.namespace}
+        spec:
+          selector: ${deployment.spec.selector.matchLabels}
+          ports:
+            - port: ${schema.spec.port}
+              targetPort: ${schema.spec.port}
+EOF
+
+kubectl apply -f - <<'EOF'
+apiVersion: kro.run/v1alpha1
+kind: ResourceGraphDefinition
+metadata:
+  name: highly-available-app
+spec:
+  schema:
+    apiVersion: v1alpha1
+    kind: HighlyAvailableApp
+    spec:
+      image: string | default="nginx:1.27"
+      port: integer | default=80
+  resources:
+    - id: deployment
+      template:
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: ${schema.metadata.name}
+          namespace: ${schema.metadata.namespace}
+        spec:
+          replicas: 3
+          selector:
+            matchLabels:
+              app: ${schema.metadata.name}
+          template:
+            metadata:
+              labels:
+                app: ${schema.metadata.name}
+            spec:
+              topologySpreadConstraints:
+                - maxSkew: 1
+                  topologyKey: topology.kubernetes.io/zone
+                  whenUnsatisfiable: ScheduleAnyway
+                  labelSelector:
+                    matchLabels:
+                      app: ${schema.metadata.name}
+              containers:
+                - name: app
+                  image: ${schema.spec.image}
+                  ports:
+                    - containerPort: ${schema.spec.port}
+    - id: service
+      template:
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: ${schema.metadata.name}
+          namespace: ${schema.metadata.namespace}
+        spec:
+          selector: ${deployment.spec.selector.matchLabels}
+          ports:
+            - port: ${schema.spec.port}
+              targetPort: ${schema.spec.port}
+    - id: pdb
+      template:
+        apiVersion: policy/v1
+        kind: PodDisruptionBudget
+        metadata:
+          name: ${schema.metadata.name}
+          namespace: ${schema.metadata.namespace}
+        spec:
+          minAvailable: 2
+          selector:
+            matchLabels: ${deployment.spec.selector.matchLabels}
+EOF
+```
+
+Confirm both RGDs are `Active` before continuing:
+
+```bash
 kubectl get rgd cost-optimized-app highly-available-app
 # Both should show STATE=Active and READY=True
 ```

@@ -11,7 +11,7 @@ spec:
   # Add your proxy's egress IP if your browser routes through a corporate proxy.
   # Find it by opening https://ifconfig.me in your browser (not a terminal).
   loadBalancerSourceRanges:
-    - "<YOUR_EGRESS_IP>/32"       # direct egress IP (terminal / personal laptop)
+  #  - "<YOUR_EGRESS_IP>/32"       # direct egress IP (terminal / personal laptop)
     # - "PROXY_EGRESS_IP/32"    # corporate proxy egress IP — uncomment and fill in
   selector:
     app: kro-ui
