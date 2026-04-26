@@ -447,6 +447,195 @@ Inside the interactive session, use these commands:
 
 ---
 
+## Capturing and Persisting Agent Output
+
+`az aks agent` writes its response to **stdout**. When `--no-interactive` is set the process exits cleanly after the answer, so standard shell redirection and pipes work without modification.
+
+### Option A — Local file (simplest)
+
+```bash
+# Redirect to a timestamped file
+REPORT="aks-report-$(date +%Y%m%d-%H%M%S).txt"
+
+az aks agent "Summarise the health of this cluster and flag any issues" \
+  --resource-group $RG \
+  --name $CLUSTER \
+  --namespace $AGENT_NAMESPACE \
+  --model=azure/gpt-4o \
+  --no-interactive \
+  --no-echo-request \
+  > "$REPORT"
+
+echo "Saved to $REPORT"
+```
+
+`--no-echo-request` suppresses the echoed question so the file only contains the answer.
+
+### Option B — See output AND save simultaneously (`tee`)
+
+```bash
+az aks agent "Why are any pods crashlooping?" \
+  --resource-group $RG \
+  --name $CLUSTER \
+  --namespace $AGENT_NAMESPACE \
+  --model=azure/gpt-4o \
+  --no-interactive \
+  --no-echo-request \
+  | tee aks-crashloop-report.txt
+```
+
+### Option C — Upload directly to Azure Blob Storage (keyless)
+
+The managed identity already has `Reader` on the subscription. Grant it **Storage Blob Data Contributor** on a container, then upload from stdin — no API key required.
+
+```bash
+# One-time: grant role to the same managed identity (or your user identity for local use)
+az role assignment create \
+  --role "Storage Blob Data Contributor" \
+  --assignee-object-id $IDENTITY_PRINCIPAL_ID \
+  --assignee-principal-type ServicePrincipal \
+  --scope "/subscriptions/$SUBSCRIPTION/resourceGroups/<storage-rg>/providers/Microsoft.Storage/storageAccounts/<storage-account>/blobServices/default/containers/<container>"
+
+# Upload output directly from a pipe
+BLOB_NAME="aks-health/$(date +%Y%m%d-%H%M%S).txt"
+
+az aks agent "Summarise cluster health and any critical warnings" \
+  --resource-group $RG \
+  --name $CLUSTER \
+  --namespace $AGENT_NAMESPACE \
+  --model=azure/gpt-4o \
+  --no-interactive \
+  --no-echo-request \
+  | az storage blob upload \
+      --account-name <storage-account> \
+      --container-name <container> \
+      --name "$BLOB_NAME" \
+      --data @- \
+      --auth-mode login \
+      --overwrite
+
+echo "Report uploaded: $BLOB_NAME"
+```
+
+### Option D — Wrapper script for scheduled / CI use
+
+```bash
+#!/usr/bin/env bash
+# aks-health-report.sh — run from CI or cron, saves locally + uploads to blob
+
+set -euo pipefail
+
+RG="agentic-cli-aks-rg"
+CLUSTER="agentic-cli-aks"
+AGENT_NAMESPACE="aks-agent"
+STORAGE_ACCOUNT="<storage-account>"
+CONTAINER="aks-reports"
+REPORT="/tmp/aks-report-$(date +%Y%m%d-%H%M%S).txt"
+
+az aks agent "Summarise cluster health, list any failing pods, and check node pressure" \
+  --resource-group "$RG" \
+  --name "$CLUSTER" \
+  --namespace "$AGENT_NAMESPACE" \
+  --model=azure/gpt-4o \
+  --no-interactive \
+  --no-echo-request \
+  > "$REPORT"
+
+az storage blob upload \
+  --account-name "$STORAGE_ACCOUNT" \
+  --container-name "$CONTAINER" \
+  --name "$(basename $REPORT)" \
+  --file "$REPORT" \
+  --auth-mode login \
+  --overwrite
+
+echo "Report saved to blob: $(basename $REPORT)"
+rm -f "$REPORT"
+```
+
+Run on a schedule:
+
+```bash
+# Add to cron (every day at 08:00)
+echo "0 8 * * * /path/to/aks-health-report.sh >> /var/log/aks-reports.log 2>&1" | crontab -
+```
+
+### Option E — Capture inside an interactive session
+
+Inside interactive mode, use `/run` to execute a shell command and optionally feed the result back to the LLM:
+
+```
+/run kubectl get pods -A --field-selector=status.phase!=Running | tee /tmp/non-running-pods.txt
+```
+
+Or use `/shell` to drop into a full bash session where you can run anything and write to the local filesystem, a mounted PVC, or pipe to `az storage blob upload`.
+
+### Option F — GitHub Actions / Azure DevOps pipeline
+
+```yaml
+# .github/workflows/aks-health-check.yml
+name: AKS Daily Health Check
+on:
+  schedule:
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # required for OIDC / keyless auth
+      contents: read
+
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install aks-agent extension
+        run: az extension add --name aks-agent --yes
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group agentic-cli-aks-rg \
+            --name agentic-cli-aks
+
+      - name: Run health check and save report
+        run: |
+          az aks agent "Summarise cluster health and flag critical issues" \
+            --resource-group agentic-cli-aks-rg \
+            --name agentic-cli-aks \
+            --namespace aks-agent \
+            --model=azure/gpt-4o \
+            --no-interactive \
+            --no-echo-request \
+            > aks-health-report.txt
+
+      - name: Upload report as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aks-health-report-${{ github.run_id }}
+          path: aks-health-report.txt
+          retention-days: 30
+```
+
+### Summary
+
+| Destination | Mechanism | Notes |
+|-------------|-----------|-------|
+| Local file | `> file.txt` or `tee` | Simplest; requires `--no-interactive` |
+| Azure Blob | `az storage blob upload --data @-` | Pipe from stdout; use `--auth-mode login` for keyless |
+| Azure Files | `az storage file upload --source file` | Save locally first, then upload |
+| CI artifact | `actions/upload-artifact` | Good for audit trail and PR gates |
+| Log Analytics | Ship the file via AMA / DCR | For long-term searchable retention |
+
+> All options require `--no-interactive`. Add `--no-echo-request` to keep the file clean (answer only, no echoed question).
+
+---
+
 ## How It Works — Full Agentic Flow
 
 ```mermaid
