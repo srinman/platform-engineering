@@ -144,6 +144,10 @@ kubectl create serviceaccount $SERVICE_ACCOUNT_NAME \
 
 ## Step 3: Grant Kubernetes RBAC Permissions (Cluster-wide read)
 
+The built-in `view` ClusterRole covers namespace-scoped resources but **excludes cluster-scoped resources** such as `nodes`. The agentic CLI needs to list nodes for health and capacity queries, so a supplemental ClusterRole is required.
+
+Apply both in one manifest:
+
 ```bash
 cat <<EOF | kubectl apply -f -
 apiVersion: rbac.authorization.k8s.io/v1
@@ -158,11 +162,42 @@ subjects:
 - kind: ServiceAccount
   name: ${SERVICE_ACCOUNT_NAME}
   namespace: ${AGENT_NAMESPACE}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: aks-agent-node-reader
+rules:
+- apiGroups: [""]
+  resources: ["nodes", "nodes/status", "nodes/metrics", "nodes/proxy", "persistentvolumes"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["nodes", "pods"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["storage.k8s.io"]
+  resources: ["storageclasses", "volumeattachments"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: aks-agent-node-reader-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: aks-agent-node-reader
+subjects:
+- kind: ServiceAccount
+  name: ${SERVICE_ACCOUNT_NAME}
+  namespace: ${AGENT_NAMESPACE}
 EOF
 
 # Verify
-kubectl get clusterrolebinding aks-agent-view-rolebinding
-kubectl get serviceaccount $SERVICE_ACCOUNT_NAME -n $AGENT_NAMESPACE
+kubectl get clusterrolebinding aks-agent-view-rolebinding aks-agent-node-reader-rolebinding
+kubectl get clusterrole aks-agent-node-reader
+kubectl auth can-i list nodes \
+  --as=system:serviceaccount:${AGENT_NAMESPACE}:${SERVICE_ACCOUNT_NAME}
+# Expected: yes
 ```
 
 ---
@@ -287,7 +322,7 @@ Enter your choice (1 or 2): 1                        ← Cluster mode
 
 Enter namespace: aks-agent                            ← your AGENT_NAMESPACE
 
-Please choose the LLM provider (1-5): 1              ← Azure OpenAI
+Please choose the LLM provider (1-5):                ← Azure OpenAI
 
   1. Azure OpenAI (API Key)
   2. Azure OpenAI (Microsoft Entra ID)               ← choose 2 for keyless
@@ -517,7 +552,8 @@ az identity delete \
   --name $IDENTITY_NAME
 
 # Remove RBAC
-kubectl delete clusterrolebinding aks-agent-view-rolebinding
+kubectl delete clusterrolebinding aks-agent-view-rolebinding aks-agent-node-reader-rolebinding
+kubectl delete clusterrole aks-agent-node-reader
 kubectl delete namespace $AGENT_NAMESPACE
 
 # Remove the CLI extension (optional)
@@ -535,6 +571,7 @@ az extension remove --name aks-agent
 | `AuthenticationFailed` on Azure OpenAI | Missing `Cognitive Services User` role | Re-run Step 5b |
 | `Unauthorized` on ARM calls | Missing `Reader` role | Re-run Step 5a |
 | `aks-mcp` pod not starting | WI webhook not injecting token | Check pod annotations: `kubectl describe pod -l app.kubernetes.io/name=aks-mcp -n aks-agent` |
+| `nodes is forbidden ... cannot list resource "nodes"` | `view` ClusterRole excludes cluster-scoped `nodes` resource | Apply `aks-agent-node-reader` ClusterRole from Step 3 |
 
 ### Check Workload Identity on agent pod
 
