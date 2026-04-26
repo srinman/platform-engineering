@@ -424,6 +424,12 @@ az aks agent "Investigate the overall health of this cluster" \
   --name $CLUSTER \
   --namespace $AGENT_NAMESPACE \
   --model=azure/gpt-4o
+
+az aks agent "Investigate the overall health of this cluster" \
+  --resource-group agentic-cli-aks-rg \
+  --name agentic-cli-aks \
+  --namespace aks-agent \
+  --model=azure/gpt-4o  
 ```
 
 Inside the interactive session, use these commands:
@@ -475,7 +481,7 @@ graph TB
     end
 
     subgraph AZUREID["Azure AD — Workload Identity"]
-        MI["Managed Identity: aks-agent-identity\n• Reader @ subscription\n• Cognitive Services User @ OpenAI"]
+        MI["Managed Identity: aks-agent-identity\n• Reader @ subscription\n• Cognitive Services User @ OpenAI\n→ tokens projected into pod env (WI webhook)"]
     end
 
     subgraph AZURERM["Azure Resource Manager"]
@@ -496,8 +502,7 @@ graph TB
     LLM    -->|"⑧ final answer"| LOOP
     LOOP   -->|"⑨ response"| AZCLI
     AZCLI  -->|"⑨ displayed"| USER
-    SA     -.->|"OIDC token exchange → Azure AD token\nfor ARM + Azure OpenAI (keyless)"| MI
-    MI     -.->|"access tokens injected into pod"| AGENTPOD
+    SA     -.->|"OIDC exchange\n(keyless auth)"| MI
 
     style CLUSTER   fill:#E8F5E9,stroke:#2E7D32,color:#1B5E20
     style AGENTNS   fill:#C8E6C9,stroke:#388E3C,color:#1B5E20
