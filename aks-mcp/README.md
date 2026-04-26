@@ -99,19 +99,22 @@ graph TB
     class KAPI kapiStyle
 ```
 
-### Agentic loop (steps ②–⑦)
+### Agentic loop explained
 
 The **agentic loop** is the repeating cycle the agent runs until the task is complete:
 
 ```
-Agent → LLM: "Here is the user prompt and these are the available MCP tools"
-LLM   → Agent: "Call tool call_kubectl with args: {get pods -n default}"
-Agent → MCP Server: HTTP POST /mcp  (via port-forward)
-MCP Server → K8s API / ARM: executes the call
-MCP Server → Agent: returns tool result
-Agent → LLM: "Here is the tool result, continue"
-LLM   → Agent: "Call tool call_az with args: {aks show ...}" (or: "I have enough info, here is the answer")
-... repeat until LLM produces a final answer ...
+① User          → Agent:       natural language prompt
+② Agent         → LLM:         prompt + list of available MCP tools
+③ LLM           → Agent:       tool_call decision  (tool name + args)
+④ Agent/MCP Client → MCP Server:  HTTP POST /mcp  (via port-forward tunnel)
+⑤a MCP Server  → K8s API:     call_kubectl (pod list, events, logs…)
+⑤b MCP Server  → ARM APIs:    call_az (cluster info, VNet, NSG, Advisor…)
+⑥  MCP Server  → Agent:       tool result returned
+⑦  Agent        → LLM:         "here is the tool result — continue reasoning"
+   ↑_______ repeats ③–⑦ until LLM has enough information _______↑
+⑧  LLM          → Agent:       final natural language answer
+⑨  Agent        → User:        response displayed in chat
 ```
 
 ### Role of each component
