@@ -6,87 +6,126 @@ Reference: [AKS MCP Server Documentation](https://learn.microsoft.com/en-us/azur
 
 ---
 
-## Architecture Overview
+## Architecture Overview — Agentic Flow
 
 ```mermaid
 %%{init: {"theme": "base", "themeVariables": {"primaryColor": "#E3F2FD", "primaryTextColor": "#263238", "primaryBorderColor": "#90CAF9", "lineColor": "#555555", "secondaryColor": "#E8F5E9", "tertiaryColor": "#FFF8E1"}}}%%
 graph TB
-    classDef userStyle fill:#4A148C,stroke:#6A1B9A,color:#ffffff
-    classDef clientStyle fill:#1565C0,stroke:#0D47A1,color:#ffffff
-    classDef tunnelStyle fill:#E65100,stroke:#BF360C,color:#ffffff
-    classDef podStyle fill:#2E7D32,stroke:#1B5E20,color:#ffffff
-    classDef saStyle fill:#F9A825,stroke:#F57F17,color:#212121
-    classDef miStyle fill:#0078D4,stroke:#005A9E,color:#ffffff
-    classDef armStyle fill:#004D40,stroke:#00251A,color:#ffffff
-    classDef svcStyle fill:#E3F2FD,stroke:#1565C0,color:#0D47A1
-    classDef kapiStyle fill:#E8F5E9,stroke:#2E7D32,color:#1B5E20
+    classDef userStyle   fill:#4A148C,stroke:#6A1B9A,color:#ffffff
+    classDef agentStyle  fill:#B71C1C,stroke:#7F0000,color:#ffffff
+    classDef llmStyle    fill:#E65100,stroke:#BF360C,color:#ffffff
+    classDef mcpcStyle   fill:#1565C0,stroke:#0D47A1,color:#ffffff
+    classDef pfStyle     fill:#6A1B9A,stroke:#4A148C,color:#ffffff
+    classDef podStyle    fill:#2E7D32,stroke:#1B5E20,color:#ffffff
+    classDef toolStyle   fill:#F9A825,stroke:#F57F17,color:#212121
+    classDef saStyle     fill:#FFF8E1,stroke:#F9A825,color:#5C3D00
+    classDef miStyle     fill:#0078D4,stroke:#005A9E,color:#ffffff
+    classDef armStyle    fill:#004D40,stroke:#00251A,color:#ffffff
+    classDef svcStyle    fill:#E3F2FD,stroke:#1565C0,color:#0D47A1
+    classDef kapiStyle   fill:#E8F5E9,stroke:#2E7D32,color:#1B5E20
+
+    USER(["User"])
 
     subgraph LOCAL["WSL2 Ubuntu — Developer Machine"]
-        USER(["User"])
-        CLI["Copilot CLI\n~/.copilot/mcp-config.json\ntype: http"]
-        CHAT["VS Code Copilot Chat\n.vscode/mcp.json\ntype: http"]
-        PF["kubectl port-forward\nlocalhost:8000 → svc:8000"]
+        subgraph AGENTBOX["Agent — GitHub Copilot  ·  Orchestrator"]
+            COPILOT["GitHub Copilot\nVS Code Chat or Copilot CLI\n─────────────────────\nReceives user prompt\nMaintains conversation context\nPlans multi-step tool use\nSynthesizes final answer"]
+            MCPCLIENT["MCP Client\nbuilt into GitHub Copilot\n─────────────────────\nReads mcp.json / mcp-config.json\nSpeaks MCP streamable-http protocol\nMarshals tool calls ↔ tool results"]
+        end
+        PF["kubectl port-forward\nlocalhost:8000 → svc/aks-mcp:8000"]
+    end
+
+    subgraph CLOUD["GitHub Cloud"]
+        LLM["LLM — GitHub Copilot Model\n─────────────────────\nUnderstands natural language\nChooses tools from MCP tool list\nReturns structured tool_call requests\nProduces final natural language answer"]
     end
 
     subgraph CLUSTER["AKS Cluster — agentic-cli-aks"]
-        SVC["Service: aks-mcp\nns: aks-mcp · ClusterIP:8000"]
-
+        SVC["Service: aks-mcp · ClusterIP:8000"]
         subgraph NSMCP["Namespace: aks-mcp"]
-            POD["aks-mcp Pod\nstreamable-http :8000"]
-            SA["ServiceAccount: aks-mcp\nprojected OIDC token\ninjected by WI webhook"]
+            POD["aks-mcp Pod — MCP Server\nTool Provider + Executor\nstreamable-http :8000"]
+            TOOLS["Registered Tools:\ncall_kubectl  ·  Kubernetes operations\ncall_az  ·  Azure ARM operations"]
+            SA["ServiceAccount: aks-mcp\nProjected OIDC token\ninjected by WI webhook"]
         end
-
         KAPI["Kubernetes API Server\nClusterRole: read bindings"]
     end
 
     subgraph AZUREID["Azure AD — Workload Identity"]
-        OIDC["AKS OIDC Issuer\nvalidates SA token"]
-        FED["Federated Credential\nsubject: system:serviceaccount:aks-mcp:aks-mcp"]
-        MI["Managed Identity\naks-mcp-identity\nRole: Reader @ subscription"]
+        MI["Managed Identity: aks-mcp-identity\nFederated via AKS OIDC Issuer\nRole: Reader @ subscription"]
     end
 
     subgraph AZURERM["Azure Resource Manager"]
-        ARM["ARM APIs\ncluster · VNet · NSG · Advisor"]
+        ARM["ARM APIs\nCluster · VNet · NSG\nAdvisor · Metrics"]
     end
 
-    USER -->|"prompt"| CLI & CHAT
-    CLI & CHAT -->|"HTTP POST /mcp\nstreamable-http transport"| PF
-    PF -.->|"port-forward tunnel"| SVC
-    SVC --> POD
-    SA -.->|"WI webhook injects\nprojected token into pod"| POD
-    POD -->|"kubectl ops\nKubernetes RBAC"| KAPI
-    POD -->|"1 · present SA token"| OIDC
-    OIDC -->|"2 · validate via"| FED
-    FED -->|"3 · resolve identity"| MI
-    MI -->|"4 · Azure AD access token"| POD
-    POD -->|"5 · call_az ARM calls"| ARM
+    USER         -->|"① natural language prompt"| COPILOT
+    COPILOT      -->|"② prompt + MCP tool definitions"| LLM
+    LLM          -->|"③ tool_call decision\n(tool name + args)"| COPILOT
+    COPILOT      -->|"④ invoke tool"| MCPCLIENT
+    MCPCLIENT    -->|"④ HTTP POST /mcp"| PF
+    PF           -.->|"port-forward tunnel"| SVC
+    SVC          --> POD
+    POD          --> TOOLS
+    TOOLS        -->|"⑤a kubectl"| KAPI
+    TOOLS        -->|"⑤b call_az + Azure AD token"| ARM
+    KAPI         -->|"⑥a k8s data"| TOOLS
+    ARM          -->|"⑥b Azure resource data"| TOOLS
+    TOOLS        -->|"⑥ tool result"| POD
+    POD          -->|"⑥ MCP response"| MCPCLIENT
+    MCPCLIENT    -->|"⑥ tool result"| COPILOT
+    COPILOT      -->|"⑦ tool results → continue reasoning"| LLM
+    LLM          -->|"⑧ final answer"| COPILOT
+    COPILOT      -->|"⑨ response to user"| USER
+    SA           -.->|"OIDC token exchange\n→ Azure AD token"| MI
+    MI           -.->|"access token\ninjected into pod"| POD
 
-    style LOCAL fill:#F3E5F5,stroke:#7B1FA2,color:#4A148C
-    style CLUSTER fill:#E8F5E9,stroke:#2E7D32,color:#1B5E20
-    style NSMCP fill:#C8E6C9,stroke:#388E3C,color:#1B5E20
-    style AZUREID fill:#E3F2FD,stroke:#1565C0,color:#0D47A1
-    style AZURERM fill:#E0F2F1,stroke:#00796B,color:#004D40
+    style LOCAL     fill:#F3E5F5,stroke:#7B1FA2,color:#4A148C
+    style AGENTBOX  fill:#FFEBEE,stroke:#B71C1C,color:#B71C1C
+    style CLOUD     fill:#FFF3E0,stroke:#E65100,color:#BF360C
+    style CLUSTER   fill:#E8F5E9,stroke:#2E7D32,color:#1B5E20
+    style NSMCP     fill:#C8E6C9,stroke:#388E3C,color:#1B5E20
+    style AZUREID   fill:#E3F2FD,stroke:#1565C0,color:#0D47A1
+    style AZURERM   fill:#E0F2F1,stroke:#00796B,color:#004D40
 
     class USER userStyle
-    class CLI,CHAT clientStyle
-    class PF tunnelStyle
+    class COPILOT agentStyle
+    class LLM llmStyle
+    class MCPCLIENT mcpcStyle
+    class PF pfStyle
     class POD podStyle
+    class TOOLS toolStyle
     class SA saStyle
-    class OIDC,FED,MI miStyle
+    class MI miStyle
     class ARM armStyle
     class SVC svcStyle
     class KAPI kapiStyle
 ```
 
-**Solid arrows** = MCP request/response flow &nbsp;|&nbsp; **Dotted arrows** = identity injection
+### Agentic loop (steps ②–⑦)
 
-| Component | Location | Identity Used |
-|-----------|----------|--------------|
-| Copilot CLI | WSL2 `~/.copilot/mcp-config.json` | Your Azure login (`az login`) |
-| VS Code Copilot Chat | `.vscode/mcp.json` | Your Azure login (`az login`) |
-| `kubectl port-forward` | WSL2 terminal | Your kubeconfig context |
-| `aks-mcp` Pod | AKS namespace `aks-mcp` | ServiceAccount (k8s) + Managed Identity (Azure) |
-| Managed Identity | Azure AD | Federated via AKS OIDC issuer — no stored secrets |
+The **agentic loop** is the repeating cycle the agent runs until the task is complete:
+
+```
+Agent → LLM: "Here is the user prompt and these are the available MCP tools"
+LLM   → Agent: "Call tool call_kubectl with args: {get pods -n default}"
+Agent → MCP Server: HTTP POST /mcp  (via port-forward)
+MCP Server → K8s API / ARM: executes the call
+MCP Server → Agent: returns tool result
+Agent → LLM: "Here is the tool result, continue"
+LLM   → Agent: "Call tool call_az with args: {aks show ...}" (or: "I have enough info, here is the answer")
+... repeat until LLM produces a final answer ...
+```
+
+### Role of each component
+
+| Component | Role | Identity |
+|-----------|------|----------|
+| **GitHub Copilot** (VS Code / CLI) | **Agent / Orchestrator** — drives the loop, decides when done | Your user session |
+| **GitHub Copilot Model (LLM)** | **Reasoning engine** — understands intent, selects tools, synthesizes answer | GitHub cloud (no local identity) |
+| **MCP Client** (built into Copilot) | **Tool call transport** — speaks MCP protocol, routes calls to the server | Inherits agent session |
+| **kubectl port-forward** | **Network tunnel** — bridges WSL2 localhost to the in-cluster service | Your kubeconfig context |
+| **aks-mcp Pod (MCP Server)** | **Tool executor** — implements `call_kubectl` and `call_az` tools | ServiceAccount (K8s) + Managed Identity (Azure) |
+| **Managed Identity** | **Azure credential** — passwordless auth for ARM calls via Workload Identity | Federated via AKS OIDC issuer |
+
+**Solid arrows** = request/response data flow &nbsp;|&nbsp; **Dotted arrows** = identity/token injection
 
 ---
 
