@@ -418,7 +418,7 @@ az aks agent "What is the network configuration (VNet, subnet, NSG) for this clu
 
 ### Saving output to a file
 
-Use `--no-echo-request` to suppress the echoed question so the file starts directly with the answer. Pipe through `sed` to strip ANSI escape codes (color/spinner sequences) that the agent may emit:
+Use `--no-echo` to suppress the echoed question so the file starts directly with the answer. The agent output contains ANSI escape codes (colors/spinners) **and** carriage returns (`\r`) — both must be stripped for a clean file:
 
 ```bash
 az aks agent "can user workloads without request or limit set with a sudden spike eat into kube-reserved? give a detailed explanation about this scenario and the possibilities. give the output in markdown format" \
@@ -427,12 +427,15 @@ az aks agent "can user workloads without request or limit set with a sudden spik
   --namespace $AGENT_NAMESPACE \
   --model=azure/gpt-4o \
   --no-interactive \
-  --no-echo-request \
+  --no-echo \
+  | tr -d '\r' \
   | sed 's/\x1b\[[0-9;]*m//g' \
   | tee ~/git/platform-engineering/aks-agentic-cli/agent-output.md
 ```
 
-`tee` writes to the file **and** prints to the terminal simultaneously, so you can watch the output as it streams.
+`tr -d '\r'` removes carriage returns that make the file look empty when viewed with `cat`. `tee` writes to the file **and** prints to the terminal simultaneously.
+
+> **Note:** If the file appears empty in the terminal via `cat`, it almost certainly has carriage returns. Run `cat -A agent-output.md | head -5` — if lines end with `^M$` instead of `$`, the `tr -d '\r'` step is needed.
 
 > **Tip:** Add `aks-agentic-cli/agent-output*.md` to `.gitignore` if you don't want to commit agent run outputs, or commit them intentionally as a library of agent-generated reference docs.
 
